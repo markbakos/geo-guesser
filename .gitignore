@@ -1,5 +1,5 @@
 .venv
-app/.env
 .idea
-/app/collection/dataset/
-/app/collection/logs/
+/collection/dataset/
+/collection/logs/
+.env
