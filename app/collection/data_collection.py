@@ -1,5 +1,4 @@
 import logging
-from importlib.metadata import metadata
 from pathlib import Path
 from PIL import Image
 from typing import Tuple, Dict

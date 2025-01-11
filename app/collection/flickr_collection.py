@@ -1,14 +1,14 @@
 import logging
 import os
 import time
-
 from tqdm import tqdm
 import pandas as pd
 from dotenv import load_dotenv
 from typing import Optional, List, Dict
-from data_collection import GeolocationDataCollector
 from pathlib import Path
 import requests
+import sys
+from data_collection import GeolocationDataCollector
 
 class FlickrImageCollector:
     def __init__(self, api_key: Optional[str] = None, base_path: str = "dataset", images_per_location: int = 100):
