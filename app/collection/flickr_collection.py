@@ -1,17 +1,18 @@
 import logging
 import os
 import time
+
 from tqdm import tqdm
 import pandas as pd
 from dotenv import load_dotenv
 from typing import Optional, List, Dict
 from pathlib import Path
 import requests
-import sys
 from data_collection import GeolocationDataCollector
+from location_sampler import LocationSampler
 
 class FlickrImageCollector:
-    def __init__(self, api_key: Optional[str] = None, base_path: str = "dataset", images_per_location: int = 100):
+    def __init__(self, api_key: Optional[str] = None, base_path: str = "dataset", images_per_location: int = 10):
         dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
         load_dotenv(dotenv_path)
         self.api_key = api_key or os.getenv('FLICKR_KEY')
@@ -20,6 +21,8 @@ class FlickrImageCollector:
         self.images_per_location = images_per_location
         self.data_collector = GeolocationDataCollector()
 
+        log_dir = Path('logs')
+        log_dir.mkdir(exist_ok=True)
         logging.basicConfig(
             filename=Path(base_path) / 'flickr_collection.log',
             level=logging.INFO,
@@ -72,62 +75,89 @@ class FlickrImageCollector:
             self.logger.error(f"Error downloading image from {url}: {str(e)}")
             return False
 
-    def collect_images(self, locations: List[Dict[str, float]]) -> pd.DataFrame:
-        """Collect images for a list of locations"""
-        metadata = []
+    def collect_images(self, min_locations: int = 200) -> pd.DataFrame:
+        """Collect images using the LocationSampler"""
+        try:
+            sampler = LocationSampler(min_locations=min_locations)
+            locations = sampler.generate_locations()
 
-        for location in tqdm(locations, desc="Collecting locations"):
-            photos = self.search_photos(location['lat'], location['lon'])
+            self.logger.info(f"Generated {len(locations)} diverse locations")
 
-            for photo in tqdm(photos, desc=f"Processing images for {location['lat']}, {location['lon']}", leave=False):
-                try:
-                    image_filename = f"{photo['id']}.jpg"
-                    image_path = self.data_collector.images_path / image_filename
+            pd.DataFrame(locations).to_csv(
+                Path(self.data_collector.base_path) / "flickr_sampling_locations.csv",
+                index=False
+            )
 
-                    if self.download_image(photo['url_l'], str(image_path)):
-                        if self.data_collector.validate_image(str(image_path)):
-                            processed_path = self.data_collector.process_image(str(image_path))
-                            if processed_path:
-                                metadata.append({
-                                    'image_id': photo['id'],
-                                    'filename': image_filename,
-                                    'latitude': float(photo['latitude']),
-                                    'longitude': float(photo['longitude']),
-                                    'original_url': photo['url_l']
-                                })
+            metadata = []
+            for location in tqdm(locations, desc="Processing locations"):
+                photos = self.search_photos(location['lat'], location['lon'])
+
+                for photo in tqdm(photos, desc=f"Collecting images for {location.get('name', 'location')}",
+                                  leave=False):
+                    try:
+                        image_filename = f"flickr_{photo['id']}.jpg"
+                        image_path = self.data_collector.images_path / image_filename
+
+                        if self.download_image(photo['url_l'], str(image_path)):
+                            if self.data_collector.validate_image(str(image_path)):
+                                processed_path = self.data_collector.process_image(str(image_path))
+                                if processed_path:
+                                    metadata.append({
+                                        'image_id': f"flickr_{photo['id']}",
+                                        'filename': image_filename,
+                                        'latitude': float(photo['latitude']),
+                                        'longitude': float(photo['longitude']),
+                                        'source': 'flickr',
+                                        'location_name': location.get('name', 'unknown'),
+                                        'location_type': location.get('type', 'unknown')
+                                    })
+                                else:
+                                    os.remove(str(image_path))
                             else:
                                 os.remove(str(image_path))
-                        else:
-                            os.remove(str(image_path))
 
-                    time.sleep(0.5)
+                        time.sleep(0.5)
 
-                except Exception as e:
-                    self.logger.error(f"Error processing photo {photo['id']}: {str(e)}")
-                    continue
+                    except Exception as e:
+                        self.logger.error(f"Error processing photo {photo['id']}: {str(e)}")
+                        continue
 
-        return pd.DataFrame(metadata)
+            metadata_df = pd.DataFrame(metadata)
+
+            self.data_collector.save_metadata(metadata_df, "flickr_metadata.csv")
+
+            self._log_statistics(metadata_df)
+
+            return metadata_df
+
+        except Exception as e:
+            self.logger.error(f"Error in image collection: {str(e)}")
+            raise
+
+    def _log_statistics(self, df: pd.DataFrame) -> None:
+        """Log collection statistics"""
+        stats = {
+            "Total Images": len(df),
+            "Unique Locations": len(df.groupby(['latitude', 'longitude'])),
+            "Location Types": df['location_type'].value_counts().to_dict()
+        }
+
+        self.logger.info("Collection statistics:")
+        for key, value in stats.items():
+            self.logger.info(f"{key}: {value}")
 
 def main():
-    locations = [
-        {"lat": 40.7128, "lon": -74.0060},
-        {"lat": 51.5074, "lon": -0.1278},
-        {"lat": 35.6762, "lon": 139.6503},
-        {"lat": 48.8566, "lon": 2.3522},
-        {"lat": -33.8688, "lon": 151.2093},
-    ]
-
     collector = FlickrImageCollector()
-    metadata_df = collector.collect_images(locations)
+
+    metadata_df = collector.collect_images(min_locations=250)
 
     collector.data_collector.save_metadata(metadata_df)
 
-    splits = collector.data_collector.create_dataset_split()
-
+    print("\nCollection completed!")
     print(f"Total images collected: {len(metadata_df)}")
-    print(f"Training samples: {len(splits['train'])}")
-    print(f"Validation samples: {len(splits['val'])}")
-    print(f"Test samples: {len(splits['test'])}")
+    print(f"Unique locations: {len(metadata_df.groupby(['latitude', 'longitude']))}")
+    print("\nLocation type distribution:")
+    print(metadata_df['location_type'].value_counts())
 
 if __name__ == '__main__':
     main()

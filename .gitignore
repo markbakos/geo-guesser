@@ -2,3 +2,4 @@
 app/.env
 .idea
 /app/collection/dataset/
+/app/collection/logs/
