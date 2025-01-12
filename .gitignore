@@ -3,3 +3,4 @@
 /collection/dataset/
 /collection/logs/
 .env
+/model/logs/
