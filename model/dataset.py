@@ -3,15 +3,15 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
 import pandas as pd
-import numpy as np
 from pathlib import Path
 import logging
 
 
 class LocationDataset(Dataset):
-    def __init__(self, metadata_path, images_dir, transform=None):
+    def __init__(self, metadata_path, images_dir, transform=None, train_mode=False):
         self.metadata_path = Path(metadata_path)
         self.images_dir = Path(images_dir)
+        self.train_mode = train_mode
 
         if not self.metadata_path.exists():
             raise FileNotFoundError(f"Metadata file not found: {metadata_path}")
@@ -19,14 +19,28 @@ class LocationDataset(Dataset):
         self.metadata = pd.read_csv(self.metadata_path)
 
         if transform is None:
-            self.transform = transforms.Compose([
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225]
-                )
-            ])
+            if train_mode:
+                self.transform = transforms.Compose([
+                    transforms.Resize((256, 256)),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomRotation(10),
+                    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                    transforms.RandomCrop((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225]
+                    )
+                ])
+            else:
+                self.transform = transforms.Compose([
+                    transforms.Resize((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225]
+                    )
+                ])
         else:
             self.transform = transform
 
@@ -63,38 +77,44 @@ def get_data_loaders(base_path, batch_size=32, num_workers=4):
     try:
         train_dataset = LocationDataset(
             metadata_dir / "train_metadata.csv",
-            images_dir
+            images_dir,
+            train_mode=True
         )
 
         val_dataset = LocationDataset(
             metadata_dir / "val_metadata.csv",
-            images_dir
+            images_dir,
+            train_mode=False
         )
 
         test_dataset = LocationDataset(
             metadata_dir / "test_metadata.csv",
-            images_dir
+            images_dir,
+            train_mode=False
         )
 
         train_loader = DataLoader(
             train_dataset,
             batch_size=batch_size,
             shuffle=True,
-            num_workers=num_workers
+            num_workers=num_workers,
+            pin_memory=True
         )
 
         val_loader = DataLoader(
             val_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=num_workers
+            num_workers=num_workers,
+            pin_memory=True
         )
 
         test_loader = DataLoader(
             test_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=num_workers
+            num_workers=num_workers,
+            pin_memory=True
         )
 
         return train_loader, val_loader, test_loader

@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 from pathlib import Path
 import logging
+
+from torch.nn.functional import dropout
 from tqdm import tqdm
 import numpy as np
 from datetime import datetime
@@ -76,7 +78,7 @@ def haversine_loss(pred, target):
     return torch.mean(R * c)
 
 
-def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001):
+def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001, patience=10):
     logging.basicConfig(
         filename=paths['logs'] / f'training_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
         level=logging.INFO,
@@ -86,7 +88,7 @@ def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device: {device}")
 
-    model = LocationCNN().to(device)
+    model = LocationCNN(dropout_rate=0.3).to(device)
 
     train_loader, val_loader, test_loader = get_data_loaders(
         str(paths['dataset']),
@@ -97,12 +99,13 @@ def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001):
         logging.error("Failed to create data loaders. Check if dataset files exist.")
         return None, None
 
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.1, patience=5, verbose=True
     )
 
     best_val_loss = float('inf')
+    epochs_without_improvement = 0
 
     for epoch in range(epochs):
 
@@ -118,8 +121,10 @@ def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001):
             loss = haversine_loss(outputs, coordinates)
 
             loss.backward()
-            optimizer.step()
 
+            torch.nn.utils.clip_grad_norm(model.parameters(), max_norm=1.0)
+
+            optimizer.step()
             train_losses.append(loss.item())
 
         model.eval()
@@ -145,9 +150,20 @@ def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001):
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
+            epochs_without_improvement = 0
             model_path = paths['models'] / "best_model.pth"
-            torch.save(model.state_dict(), model_path)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_val_loss': best_val_loss,
+            }, model_path)
             logging.info(f"Saved new best model with validation loss: {val_loss:.2f} km")
+        else:
+            epochs_without_improvement += 1
+            if epochs_without_improvement >= patience:
+                logging.info(f"Early stopping triggered from no improvement at {epoch + 1} epochs")
+                break
 
     return model, model_path
 
