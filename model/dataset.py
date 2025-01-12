@@ -5,7 +5,8 @@ from PIL import Image
 import pandas as pd
 from pathlib import Path
 import logging
-
+import albumentations as A
+import numpy as np
 
 class LocationDataset(Dataset):
     def __init__(self, metadata_path, images_dir, transform=None, train_mode=False):
@@ -22,16 +23,57 @@ class LocationDataset(Dataset):
             if train_mode:
                 self.transform = transforms.Compose([
                     transforms.Resize((256, 256)),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.RandomRotation(10),
-                    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-                    transforms.RandomCrop((224, 224)),
+                    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
+                    transforms.RandomHorizontalFlip(p=0.5),
+                    transforms.RandomVerticalFlip(p=0.2),
+                    transforms.RandomRotation(15),
+                    transforms.ColorJitter(
+                        brightness=0.3,
+                        contrast=0.3,
+                        saturation=0.3,
+                        hue=0.1
+                    ),
+                    transforms.RandomGrayscale(p=0.1),
+                    transforms.RandomPerspective(distortion_scale=0.2, p=0.5),
+                    transforms.RandomAffine(
+                        degrees=10,
+                        translate=(0.1, 0.1),
+                        scale=(0.9, 1.1)
+                    ),
+                    transforms.RandomApply([
+                        transforms.GaussianBlur(kernel_size=3)
+                    ], p=0.3),
                     transforms.ToTensor(),
+                    transforms.RandomErasing(p=0.2),
                     transforms.Normalize(
                         mean=[0.485, 0.456, 0.406],
                         std=[0.229, 0.224, 0.225]
                     )
                 ])
+
+                self.albu_transform = A.Compose([
+                    A.OneOf([
+                        A.RandomBrightnessContrast(p=1),
+                        A.RandomGamma(p=1),
+                        A.CLAHE(p=1),
+                    ], p=0.5),
+                    A.OneOf([
+                        A.GaussNoise(p=1),
+                        A.ISONoise(p=1),
+                        A.MultiplicativeNoise(p=1),
+                    ], p=0.3),
+                    A.OneOf([
+                        A.Sharpen(p=1),
+                        A.Blur(p=1),
+                        A.MotionBlur(p=1),
+                    ], p=0.3),
+                    A.OneOf([
+                        A.RandomShadow(p=1),
+                        A.RandomSunFlare(p=1),
+                        A.RandomRain(p=1),
+                    ], p=0.2),
+                ])
+
             else:
                 self.transform = transforms.Compose([
                     transforms.Resize((224, 224)),
@@ -55,6 +97,12 @@ class LocationDataset(Dataset):
             raise FileNotFoundError(f"Image not found: {img_path}")
 
         image = Image.open(img_path).convert('RGB')
+
+        if self.train_mode and self.albu_transform:
+            image_np = np.array(image)
+            augmented = self.albu_transform(image=image_np)
+            image = Image.fromarray(augmented['image'])
+
         image = self.transform(image)
 
         coordinates = torch.tensor([
@@ -98,7 +146,8 @@ def get_data_loaders(base_path, batch_size=32, num_workers=4):
             batch_size=batch_size,
             shuffle=True,
             num_workers=num_workers,
-            pin_memory=True
+            pin_memory=True,
+            drop_last=True
         )
 
         val_loader = DataLoader(
