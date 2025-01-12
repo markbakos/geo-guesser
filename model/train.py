@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from pathlib import Path
 import logging
-
+import math
 from torch.nn.functional import dropout
 from tqdm import tqdm
 import numpy as np
@@ -11,6 +11,9 @@ from datetime import datetime
 from torchvision import transforms
 from PIL import Image
 import os
+from torch.optim.lr_scheduler import OneCycleLR
+import wandb
+from torch.cuda.amp import autocast, GradScaler
 
 from architecture import LocationCNN
 from dataset import get_data_loaders
@@ -77,8 +80,48 @@ def haversine_loss(pred, target):
 
     return torch.mean(R * c)
 
+def calculate_metrics(pred, target):
+    with torch.no_grad():
+        distance_error = haversine_loss(pred, target)
+
+        distances = []
+        for p, t in zip(pred, target):
+            lat1, lon1 = p
+            lat2, lon2 = t
+
+            R = 6371
+            lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+
+            a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+            c = 2 * math.asin(math.sqrt(a))
+            distance = R * c
+
+            distances.append(distance)
+
+        distances = np.array(distances)
+        acc_100km = np.mean(distances <= 100)
+        acc_500km = np.mean(distances <= 500)
+        acc_1000km = np.mean(distances <= 1000)
+
+        return {
+            'distance_error': distance_error.item(),
+            'acc_100km': acc_100km,
+            'acc_500km': acc_500km,
+            'acc_1000km': acc_1000km,
+            'median_error': np.median(distances)
+        }
 
 def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001, patience=10):
+    wandb.init(project="location-prediction", config={
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "learning_rate": learning_rate,
+        "architecture": "resnet50_backbone"
+    })
+
     logging.basicConfig(
         filename=paths['logs'] / f'training_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
         level=logging.INFO,
@@ -88,7 +131,7 @@ def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001, patience=
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device: {device}")
 
-    model = LocationCNN(dropout_rate=0.3).to(device)
+    model = LocationCNN(dropout_rate=0.3, weights=True).to(device)
 
     train_loader, val_loader, test_loader = get_data_loaders(
         str(paths['dataset']),
@@ -99,10 +142,19 @@ def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001, patience=
         logging.error("Failed to create data loaders. Check if dataset files exist.")
         return None, None
 
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.1, patience=5, verbose=True
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0.01)
+
+    steps_per_epoch = len(train_loader)
+    scheduler = OneCycleLR(
+        optimizer,
+        max_lr=learning_rate,
+        epochs=epochs,
+        steps_per_epoch=steps_per_epoch,
+        pct_start=0.3,
+        anneal_strategy='cos',
     )
+
+    scaler = GradScaler()
 
     best_val_loss = float('inf')
     epochs_without_improvement = 0
@@ -110,25 +162,37 @@ def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001, patience=
     for epoch in range(epochs):
 
         model.train()
-        train_losses = []
+        train_metrics = []
+
+        if epoch < epochs // 3:
+            model._freeze_early_layers()
+        else:
+            model.unfreeze_backbone()
 
         for images, coordinates in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs}"):
             images = images.to(device)
             coordinates = coordinates.to(device)
 
+            with autocast():
+                outputs = model(images)
+                loss = haversine_loss(outputs, coordinates)
+
             optimizer.zero_grad()
-            outputs = model(images)
-            loss = haversine_loss(outputs, coordinates)
+            scaler.scale(loss).backward()
 
-            loss.backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
-            torch.nn.utils.clip_grad_norm(model.parameters(), max_norm=1.0)
+            scaler.step(optimizer)
+            scaler.update()
 
-            optimizer.step()
-            train_losses.append(loss.item())
+            scheduler.step()
+
+            batch_metrics = calculate_metrics(outputs.detach().cpu(), coordinates.cpu())
+            train_metrics.append(batch_metrics)
 
         model.eval()
-        val_losses = []
+        val_metrics = []
 
         with torch.no_grad():
             for images, coordinates in val_loader:
@@ -136,29 +200,34 @@ def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001, patience=
                 coordinates = coordinates.to(device)
 
                 outputs = model(images)
-                loss = haversine_loss(outputs, coordinates)
-                val_losses.append(loss.item())
+                batch_metrics = calculate_metrics(outputs.cpu(), coordinates.cpu())
+                val_metrics.append(batch_metrics)
 
-        train_loss = np.mean(train_losses)
-        val_loss = np.mean(val_losses)
+        train_metrics_avg = {k: np.mean([m[k] for m in train_metrics]) for k in train_metrics[0]}
+        val_metrics_avg = {k: np.mean([m[k] for m in val_metrics]) for k in val_metrics[0]}
 
-        logging.info(f"Epoch {epoch + 1}/{epochs}")
-        logging.info(f"Training Loss: {train_loss:.2f} km")
-        logging.info(f"Validation Loss: {val_loss:.2f} km")
+        wandb.log({
+            'epoch': epoch,
+            'train_loss': train_metrics_avg['distance_error'],
+            'val_loss': val_metrics_avg['distance_error'],
+            'train_acc_500km': train_metrics_avg['acc_500km'],
+            'val_acc_500km': train_metrics_avg['acc_500km'],
+            'learning_rate': optimizer.param_groups[0]['lr']
+        })
 
-        scheduler.step(val_loss)
-
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        if val_metrics_avg['distance_error'] < best_val_loss:
+            best_val_loss = val_metrics_avg['distance_error']
             epochs_without_improvement = 0
+
             model_path = paths['models'] / "best_model.pth"
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_val_loss': best_val_loss,
+                'metrics': val_metrics_avg,
             }, model_path)
-            logging.info(f"Saved new best model with validation loss: {val_loss:.2f} km")
+            logging.info(f"Saved new best model with validation loss: {best_val_loss:.2f} km")
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= patience:
@@ -170,27 +239,34 @@ def train_model(paths, epochs=100, batch_size=32, learning_rate=0.001, patience=
 
 def main():
     paths = setup_paths()
-
-    print("Checking paths:")
-    for name, path in paths.items():
-        exists = path.exists()
-        print(f"{name}: {path} ({'exists' if exists else 'missing'})")
-
     print("\nStarting training...")
     model, model_path = train_model(paths)
 
     if model is not None and model_path is not None:
         print(f"\nTraining completed! Best model saved to: {model_path}")
 
-        test_images = list(paths['images'].glob("*.jpg"))
-        if test_images:
-            print("\nTesting model prediction with a sample image...")
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            lat, lon = predict_location(model, test_images[0], device)
-            print(f"Predicted location: {lat:.4f}°N, {lon:.4f}°E")
-    else:
-        print("\nTraining failed. Check the logs for details.")
+        model.eval()
+        test_metrics = []
 
+        test_loader = get_data_loaders(str(paths['dataset']))[2]
+        device = next(model.parameters()).device
+
+        with torch.no_grad():
+            for images, coordinates in test_loader:
+                images = images.to(device)
+                coordinates = coordinates.to(device)
+
+                outputs = model(images)
+                batch_metrics = calculate_metrics(outputs.cpu(), coordinates.cpu())
+                test_metrics.append(batch_metrics)
+
+            test_metrics_avg = {k: np.mean([m[k] for m in test_metrics]) for k in test_metrics[0]}
+
+            print("\nTest Metrics:")
+            for metric, value in test_metrics_avg.items():
+                print(f"{metric}: {value:.4f}")
+    else:
+        print("Training did not complete successfuly")
 
 if __name__ == "__main__":
     main()
