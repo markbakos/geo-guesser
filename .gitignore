@@ -4,4 +4,4 @@
 /collection/logs/
 .env
 /model/logs/
-/model/wandb/
+/model/checkpoints/
