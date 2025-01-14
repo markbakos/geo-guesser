@@ -1,79 +1,53 @@
-import logging
-import torch.cuda
+from keras import preprocessing, applications, models
+import tensorflow as tf
+import numpy as np
 from pathlib import Path
-from model.architecture import LocationCNN
-from torchvision import transforms
+import argparse
 from PIL import Image
 
+def load_and_process_image(image_path: str, target_size=(224,224)):
+    img = preprocessing.image.load_img(image_path, target_size=target_size)
+    img_array = preprocessing.image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
 
-class LocationPredictor:
-    def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = LocationCNN().to(self.device)
+    return applications.resnet50.preprocess_input(img_array)
 
-        model_path = Path(__file__).parent / "model" / "saved_models" / "best_model.pth"
-        checkpoint = torch.load(model_path, map_location=self.device)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.model.eval()
-
-        self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-        ])
-
-    def predict(self, image_path):
-        try:
-            image = Image.open(image_path).convert('RGB')
-            image_tensor = self.transform(image).unsqueeze(0).to(self.device)
-
-            with torch.no_grad():
-                coordinates = self.model(image_tensor)
-                lat, lon = coordinates[0].cpu().numpy()
-
-            return {
-                'latitude': float(lat),
-                'longitude': float(lon),
-                'success': True
-            }
-        except Exception as e:
-            logging.error(f"Prediction failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
-
-
-def main():
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
-
+def predict_location(image_path: str, model_path: str = "model/checkpoints/best_model.keras"):
     try:
-        import sys
-        if len(sys.argv) != 2:
-            print("Usage: python predict.py <image_path>")
-            sys.exit(1)
+        model = models.load_model(
+            model_path,
+            custom_objects={
+                'haversine_loss': lambda y_true, y_pred: tf.math.reduce_mean(tf.math.abs(y_true - y_pred)),
+                'location_accuracy': lambda y_true, y_pred: tf.math.reduce_mean(tf.cast(tf.abs(y_true - y_pred) <= 100, tf.float32))
+            }
+        )
 
-        image_path = sys.argv[1]
+        processed_image = load_and_process_image(image_path)
 
-        predictor = LocationPredictor()
-        result = predictor.predict(image_path)
+        predicted_coords = model.predict(processed_image)[0]
+        latitude, longitude = predicted_coords
 
-        if result['success']:
-            print(f"\nPredicted location:")
-            print(f"Latitude: {result['latitude']}°N")
-            print(f"Longitude: {result['longitude']}°E")
-        else:
-            print(f"Error: {result['error']}")
+        print("\nPrediction Results:")
+        print(f"Latitude: {latitude:.4f}")
+        print(f"Longitude: {longitude:.4f}")
+
+        return latitude, longitude
 
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Error during prediction: {e}")
+        return None, None
 
+def main():
+    parser = argparse.ArgumentParser(description="Predict location from an image")
+    parser.add_argument('image_path', type=str, help="Path to the image file")
+    parser.add_argument('--model_path', type=str, default="model/checkpoints/best_model.keras", help="Path to the saved model")
+    args = parser.parse_args()
+
+    if not Path(args.image_path).exists():
+        print(f"Error: Image not found at {args.image_path}")
+        return
+
+    lat, lon = predict_location(args.image_path, args.model_path)
 
 if __name__ == '__main__':
     main()
