@@ -1,8 +1,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-
-from albumentations.core.utils import LabelEncoder
+from sklearn.preprocessing import LabelEncoder
 from keras import Sequential, utils, layers, preprocessing, applications
 
 class DataGenerator(utils.Sequence):
