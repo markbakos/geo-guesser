@@ -13,7 +13,7 @@ class LocationTrainer:
         self.epochs = epochs
         self.initial_lr = initial_lr
         self.model = None
-        self.checkpoint_dir = Path("checkpoints")
+        self.checkpoint_dir = Path("model/checkpoints")
         self.checkpoint_dir.mkdir(exist_ok=True)
 
     def prepare_generators(self):
