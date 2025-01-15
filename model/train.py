@@ -72,7 +72,11 @@ class LocationTrainer:
         return callback
 
     def train(self):
-        self.model = create_hierarchical_model()
+        train_gen, val_gen, test_gen = self.prepare_generators()
+
+        self.model = create_hierarchical_model(
+            num_scenes=train_gen.num_scenes
+        )
 
         optimizer = optimizers.Adam(learning_rate=self.initial_lr)
 
@@ -80,19 +84,20 @@ class LocationTrainer:
             optimizer=optimizer,
             loss={
                 'region': 'categorical_crossentropy',
-                'coordinates': haversine_loss
+                'scene': 'categorical_crossentropy',
+                'coordinates': haversine_loss,
             },
             loss_weights = {
                 'region': 0.3,
-                'coordinates': 0.7,
+                'scene': 0.3,
+                'coordinates': 0.4,
             },
             metrics={
                 'region': 'accuracy',
-                'coordinates': location_accuracy
+                'scene': 'accuracy',
+                'coordinates': location_accuracy,
             }
         )
-
-        train_gen, val_gen, test_gen = self.prepare_generators()
 
         history = self.model.fit(
             train_gen,
@@ -120,11 +125,14 @@ class LocationTrainer:
         img_array = np.expand_dims(img_array, axis=0)
         img_array = applications.efficientnet.preprocess_input(img_array)
 
-        region_probs, coordinates = self.model.predict(img_array)
+        region_probs, scene_probs, coordinates = self.model.predict(img_array)
         predicted_region = np.argmax(region_probs[0])
+        predicted_scene = np.argmax(scene_probs[0])
 
         return {
             'coordinates': tuple(coordinates[0]),
             'region': predicted_region,
-            'region_confidence': float(region_probs[0][predicted_region])
+            'region_confidence': float(region_probs[0][predicted_region]),
+            'scene': predicted_scene,
+            'scene_confidence': float(predicted_scene[0][predicted_scene])
         }
