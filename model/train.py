@@ -14,7 +14,13 @@ class LocationTrainer:
         self.initial_lr = initial_lr
         self.model = None
         self.checkpoint_dir = Path("model/checkpoints")
-        self.checkpoint_dir.mkdir(exist_ok=True)
+        self.checkpoint_dir.mkdir(exist_ok=True, parents=True)
+
+        self.best_model_dir = self.checkpoint_dir / "best_model"
+        self.best_model_dir.mkdir(exist_ok=True)
+
+        self.backup_dir = self.checkpoint_dir / "backup"
+        self.backup_dir.mkdir(exist_ok=True)
 
     def prepare_generators(self):
         train_gen = DataGenerator(
@@ -25,14 +31,14 @@ class LocationTrainer:
         )
 
         val_gen = DataGenerator(
-            metadata_path=self.data_dir / "metadata/train_metadata.csv",
+            metadata_path=self.data_dir / "metadata/val_metadata.csv",
             images_dir=self.data_dir / "images",
             batch_size=self.batch_size,
             augment=False,
         )
 
         test_gen = DataGenerator(
-            metadata_path=self.data_dir / "metadata/train_metadata.csv",
+            metadata_path=self.data_dir / "metadata/test_metadata.csv",
             images_dir=self.data_dir / "images",
             batch_size=self.batch_size,
             augment=False,
@@ -43,26 +49,38 @@ class LocationTrainer:
     def get_callbacks(self):
         callback = [
             callbacks.ModelCheckpoint(
-                str(self.checkpoint_dir / "best_model.keras"),
-                monitor='val_location_accuracy',
+                str(self.best_model_dir / "best_location_model.keras"),
+                monitor='val_coordinates_location_accuracy',
                 mode='max',
                 save_best_only=True,
                 verbose=1
             ),
+            callbacks.ModelCheckpoint(
+                str(self.best_model_dir / "best_overall_model.keras"),
+                monitor='val_loss',
+                mode='min',
+                save_best_only=True,
+                verbose=1
+            ),
             callbacks.EarlyStopping(
-                monitor='val_location_accuracy',
+                monitor='val_coordinates_location_accuracy',
                 mode='max',
                 patience=15,
                 restore_best_weights=True,
-                verbose=1,
+                verbose=1
             ),
             callbacks.ReduceLROnPlateau(
-                monitor='val_loss',
+                monitor='val_coordinates_loss',
                 mode='min',
-                factor=0.5,
-                patience=5,
+                factor=0.2,
+                patience=10,
                 min_lr=1e-7,
                 verbose=1
+            ),
+            callbacks.CSVLogger(
+                str(self.checkpoint_dir / "training_log.csv"),
+                separator=',',
+                append=True
             ),
             callbacks.BackupAndRestore(
                 backup_dir=str(self.checkpoint_dir / "backup")
@@ -88,14 +106,14 @@ class LocationTrainer:
                 'coordinates': haversine_loss,
             },
             loss_weights = {
-                'region': 0.3,
-                'scene': 0.3,
-                'coordinates': 0.4,
+                'region': 0.2,
+                'scene': 0.2,
+                'coordinates': 0.6,
             },
             metrics={
                 'region': 'accuracy',
                 'scene': 'accuracy',
-                'coordinates': location_accuracy,
+                'coordinates': [location_accuracy],
             }
         )
 
@@ -104,6 +122,7 @@ class LocationTrainer:
             validation_data=val_gen,
             epochs=self.epochs,
             callbacks=self.get_callbacks(),
+            shuffle=True,
         )
 
         test_results = self.model.evaluate(test_gen)
