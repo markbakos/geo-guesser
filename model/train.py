@@ -3,11 +3,11 @@ from pathlib import Path
 import numpy as np
 from keras import callbacks, optimizers, preprocessing, applications
 from .data_generator import DataGenerator
-from .architecture import create_model
 from .metrics import haversine_loss, location_accuracy
+from .hierarchial_model import create_hierarchical_model
 
 class LocationTrainer:
-    def __init__(self, data_dir: str = "collection/dataset", batch_size: int = 32, epochs: int = 100, initial_lr: float = 0.001):
+    def __init__(self, data_dir: str = "collection/dataset", batch_size: int = 16, epochs: int = 200, initial_lr: float = 0.0005):
         self.data_dir = Path(data_dir)
         self.batch_size = batch_size
         self.epochs = epochs
@@ -52,7 +52,7 @@ class LocationTrainer:
             callbacks.EarlyStopping(
                 monitor='val_location_accuracy',
                 mode='max',
-                patience=10,
+                patience=15,
                 restore_best_weights=True,
                 verbose=1,
             ),
@@ -61,22 +61,43 @@ class LocationTrainer:
                 mode='min',
                 factor=0.5,
                 patience=5,
-                min_lr=1e-6,
+                min_lr=1e-7,
                 verbose=1
+            ),
+            callbacks.BackupAndRestore(
+                backup_dir=str(self.checkpoint_dir / "backup")
             )
         ]
 
         return callback
 
     def train(self):
-        self.model = create_model()
-        self.model.compile(
-            optimizer=optimizers.Adam(learning_rate=self.initial_lr),
-            loss=haversine_loss,
-            metrics=[location_accuracy]
+        train_gen, val_gen, test_gen = self.prepare_generators()
+
+        self.model = create_hierarchical_model(
+            num_scenes=train_gen.num_scenes
         )
 
-        train_gen, val_gen, test_gen = self.prepare_generators()
+        optimizer = optimizers.Adam(learning_rate=self.initial_lr)
+
+        self.model.compile(
+            optimizer=optimizer,
+            loss={
+                'region': 'categorical_crossentropy',
+                'scene': 'categorical_crossentropy',
+                'coordinates': haversine_loss,
+            },
+            loss_weights = {
+                'region': 0.3,
+                'scene': 0.3,
+                'coordinates': 0.4,
+            },
+            metrics={
+                'region': 'accuracy',
+                'scene': 'accuracy',
+                'coordinates': location_accuracy,
+            }
+        )
 
         history = self.model.fit(
             train_gen,
@@ -86,12 +107,13 @@ class LocationTrainer:
         )
 
         test_results = self.model.evaluate(test_gen)
-        print(f"\nTest Loss: {test_results[0]:.4f}")
-        print(f"Test Accuracy: {test_results[1]:.4f}")
+        print("Test results:")
+        for metric_name, value in zip(self.model.metrics_names, test_results):
+            print(f"{metric_name}: {value:.4f}")
 
         return history
 
-    def predict_location(self, image_path: str) -> tuple:
+    def predict_location(self, image_path: str) -> dict:
         if self.model is None:
             raise ValueError("Model needs to be trained first")
 
@@ -101,7 +123,16 @@ class LocationTrainer:
 
         img_array = preprocessing.image.img_to_array(img)
         img_array = np.expand_dims(img_array, axis=0)
-        img_array = applications.resnet50.preprocess_input(img_array)
+        img_array = applications.efficientnet.preprocess_input(img_array)
 
-        coordinates = self.model.predict(img_array)[0]
-        return tuple[coordinates]
+        region_probs, scene_probs, coordinates = self.model.predict(img_array)
+        predicted_region = np.argmax(region_probs[0])
+        predicted_scene = np.argmax(scene_probs[0])
+
+        return {
+            'coordinates': tuple(coordinates[0]),
+            'region': predicted_region,
+            'region_confidence': float(region_probs[0][predicted_region]),
+            'scene': predicted_scene,
+            'scene_confidence': float(predicted_scene[0][predicted_scene])
+        }

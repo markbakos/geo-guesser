@@ -7,20 +7,17 @@ def main():
     parser = argparse.ArgumentParser(description='Train geolocation model')
     parser.add_argument('--data_dir', type=str, default='collection/dataset',
                         help='Directory containing the dataset')
-    parser.add_argument('--batch_size', type=int, default=32,
+    parser.add_argument('--batch_size', type=int,
                         help='Batch size for training')
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int,
                         help='Number of epochs to train')
-    parser.add_argument('--lr', type=float, default=0.001,
+    parser.add_argument('--lr', type=float,
                         help='Initial learning rate')
 
     args = parser.parse_args()
 
     trainer = LocationTrainer(
-        data_dir=args.data_dir,
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        initial_lr=args.lr
+        data_dir=args.data_dir
     )
 
     history = trainer.train()

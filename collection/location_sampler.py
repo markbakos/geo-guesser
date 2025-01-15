@@ -15,8 +15,19 @@ class LocationSampler:
         self.lon_bounds = (-180, 180)
 
         self.world_cities = self._load_world_cities()
-
         self.valid_locations_cache = set()
+
+        self.location_types = {
+            'urban': ['cityscape', 'street', 'architecture', 'building', 'city'],
+            'nature': ['landscape', 'nature', 'wilderness'],
+            'beach': ['beach', 'coast', 'ocean', 'sea'],
+            'mountain': ['mountain', 'hills', 'alps', 'peak'],
+            'forest': ['forest', 'woods', 'trees'],
+            'park': ['park', 'garden', 'nationalpark'],
+            'historic': ['historic', 'monument', 'ruins', 'castle'],
+            'rural': ['rural', 'countryside', 'village', 'farm'],
+            'waterfront': ['lake', 'river', 'waterfront', 'harbor']
+        }
 
     def _load_world_cities(self) -> pd.DataFrame:
         """Load world cities database"""
@@ -28,21 +39,66 @@ class LocationSampler:
             print(f"Error loading GeoJSON file: {e}")
             return pd.DataFrame()
 
+    def _get_location_type(self, lat:float, lon: float) -> str:
+        try:
+            url= f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+            headers={'User-Agent': 'LocationSampler/1.0'}
+            response = requests.get(url, headers=headers, timeout=5)
+            data= response.json()
+
+            if 'address' not in data:
+                return 'unknown'
+
+            address = data.get('address', {})
+
+            if any(key in address for key in ['bay', 'sea', 'ocean']):
+                return 'beach'
+
+            if any(key in address for key in ['peak', 'ridge', 'mountain']):
+                return 'mountain'
+
+            if any(key in address for key in ['national_park', 'park']):
+                return 'park'
+
+            if any(key in address for key in ['forest', 'wood']):
+                return 'forest'
+
+            if any(key in address for key in ['castle', 'monument', 'ruins']):
+                return 'historic'
+
+            if any(key in address for key in ['city', 'town']):
+                return 'urban'
+
+            if any(key in address for key in ['village', 'hamlet', 'farm']):
+                return 'rural'
+
+            if any(key in address for key in ['lake', 'river']):
+                return 'waterfront'
+
+            if 'suburb' not in address and 'city' not in address:
+                return 'nature'
+
+            return 'urban'
+
+        except Exception:
+            return 'unknown'
+
     def generate_locations(self) -> List[Dict[str, float]]:
         locations = []
 
         try:
             city_samples = self.world_cities.sample(
-                n=min(len(self.world_cities), self.min_locations // 3),
+                n=min(len(self.world_cities), self.min_locations // 4),
                 weights='pop_min',
                 replace=False
             )
 
             for _, city in city_samples.iterrows():
+                location_type = self._get_location_type(city.geometry.y, city.geometry.x)
                 locations.append({
                     'lat': float(city.geometry.y),
                     'lon': float(city.geometry.x),
-                    'type': 'urban',
+                    'type': location_type,
                     'name': city['name']
                 })
         except Exception as e:
@@ -58,10 +114,12 @@ class LocationSampler:
             for _ in range(min(batch_size, self.min_locations - len(locations))):
                 lat = random.uniform(*self.lat_bounds)
                 lon = random.uniform(*self.lon_bounds)
+
+                location_type = self._get_location_type(lat, lon)
                 new_locations.append({
                     'lat': lat,
                     'lon': lon,
-                    'type': 'random',
+                    'type': location_type,
                     'name': f'location_{len(locations) + len(new_locations)}'
                 })
 
@@ -115,18 +173,21 @@ class LocationSampler:
         for continent in continents.unique():
             continent_locations = df[continents == continent]
 
-            sample_size = max(
-                int(self.min_locations * len(continent_locations) / len(df)),
-                min(len(continent_locations), 50)
-            )
+            for location_type in df['type'].unique():
+                type_locations = continent_locations[continent_locations['type'] == location_type]
 
-            if not continent_locations.empty:
-                balanced_locations.extend(
-                    continent_locations.sample(
-                        n=min(len(continent_locations), sample_size),
-                        replace=False
-                    ).to_dict('records')
-                )
+                if not type_locations.empty:
+                    sample_size = max(
+                        int(self.min_locations / (len(continents.unique()) * len(df['type'].unique()))),
+                        min(len(continent_locations), 20)
+                    )
+
+                    balanced_locations.extend(
+                        type_locations.sample(
+                            n=min(len(type_locations), sample_size),
+                            replace=False
+                        ).to_dict('records')
+                    )
 
         return balanced_locations
 
