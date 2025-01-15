@@ -149,7 +149,7 @@ class FlickrImageCollector:
 def main():
     collector = FlickrImageCollector()
 
-    metadata_df = collector.collect_images(min_locations=250)
+    metadata_df = collector.collect_images(min_locations=300)
 
     collector.data_collector.save_metadata(metadata_df)
 
