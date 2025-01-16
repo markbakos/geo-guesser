@@ -15,8 +15,8 @@ class DataGenerator(utils.Sequence):
         self.shuffle = shuffle
         self.indexes = np.arange(len(self.metadata))
 
-        if 'location_type' not in self.metadata.columns:
-            self.metadata['location_type'] = 'unknown'
+        if 'region' not in self.metadata.columns:
+            self.metadata['region'] = 'unknown'
 
         self.create_region_labels()
         self.create_scene_labels()
@@ -34,7 +34,7 @@ class DataGenerator(utils.Sequence):
 
     def create_scene_labels(self):
         self.scene_encoder = LabelEncoder()
-        self.metadata['scene_encoded'] = self.scene_encoder.fit_transform(self.metadata['location_type'])
+        self.metadata['scene_encoded'] = self.scene_encoder.fit_transform(self.metadata['region'])
         self.num_scenes = len(self.scene_encoder.classes_)
         print(f"Found {self.num_scenes} scene categories: {self.scene_encoder.classes_}")
 

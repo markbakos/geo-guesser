@@ -60,33 +60,3 @@ class GeolocationDataCollector:
             self.logger.info(f"Metadata saved to {metadata_file}")
         except Exception as e:
             self.logger.error(f"Error saving metadata: {str(e)}")
-
-    def create_dataset_split(self, train_ratio: float = 0.8, val_ratio: float = 0.1) -> Dict[str, pd.DataFrame]:
-        """Splits dataset into training validation and test"""
-
-        try:
-            metadata = pd.read_csv(self.metadata_path / "metadata.csv")
-
-            metadata = metadata.sample(frac=1, random_state=42).reset_index(drop=True)
-
-            train_size = int(len(metadata) * train_ratio)
-            val_size = int(len(metadata) * val_ratio)
-
-            train_data = metadata[:train_size]
-            val_data = metadata[train_size:train_size + val_size]
-            test_data = metadata[train_size + val_size:]
-
-            splits = {
-                'train': train_data,
-                'val': val_data,
-                'test': test_data,
-            }
-
-            for split_name, split_data in splits.items():
-                split_data.to_csv(self.metadata_path / f"{split_name}_metadata.csv", index=False)
-
-            return splits
-
-        except Exception as e:
-            self.logger.error(f"Error creating dataset split: {str(e)}")
-            return {}
