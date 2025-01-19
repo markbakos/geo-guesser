@@ -4,14 +4,15 @@ import random
 import requests
 import logging
 from typing import Optional, List, Dict, Set, Tuple
-from dotenv import load_dotenv
 from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 from data_collection import GeolocationDataCollector
+from dotenv import load_dotenv
+
 
 class MapillaryImageCollector:
-    def __init__(self, api_key: Optional[str] = None, base_path:str = "dataset", images_per_location: int = 10, images_per_region: int = 1000, min_image_quality: float = 0.7):
+    def __init__(self, api_key: Optional[str] = None, base_path: str = "dataset", images_per_location: int = 10, images_per_region: int = 1000, min_image_quality: float = 0.7):
         dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
         load_dotenv(dotenv_path)
         self.api_key = api_key or os.getenv('MAPILLARY_KEY')
@@ -21,6 +22,7 @@ class MapillaryImageCollector:
         self.images_per_region = images_per_region
         self.min_image_quality = min_image_quality
         self.data_collector = GeolocationDataCollector(base_path)
+        self.metadata_file = "mapillary_metadata.csv"
 
         self.regions = {
             'north_america': {'lat': (25, 70), 'lon': (-170, -50)},
@@ -33,6 +35,25 @@ class MapillaryImageCollector:
 
         self._setup_logging(base_path)
 
+    def _load_existing_metadata(self) -> Tuple[pd.DataFrame, Set[str], Dict[str, int]]:
+        metadata_path = self.data_collector.metadata_path / self.metadata_file
+        if metadata_path.exists():
+            df = pd.read_csv(metadata_path)
+            existing_ids = set(df['image_id'].str.replace('mapillary_', ''))
+            region_counts = df['region'].value_counts().to_dict()
+            return df, existing_ids, region_counts
+        return pd.DataFrame(), set(), {region: 0 for region in self.regions}
+
+    def _save_metadata(self, new_metadata: List[Dict], existing_df: pd.DataFrame = None) -> None:
+        new_df = pd.DataFrame(new_metadata)
+        if existing_df is not None and not existing_df.empty:
+            combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+        else:
+            combined_df = new_df
+
+        self.data_collector.save_metadata(combined_df, self.metadata_file)
+        self._log_statistics(combined_df)
+
     def _setup_logging(self, base_path: str) -> None:
         log_dir = Path('logs')
         log_dir.mkdir(exist_ok=True)
@@ -43,13 +64,42 @@ class MapillaryImageCollector:
         )
         self.logger = logging.getLogger(__name__)
 
-    def get_random_coordinates(self, region: Dict[str, Dict[float, float]]) -> tuple:
+    def _log_statistics(self, df: pd.DataFrame) -> None:
+        try:
+            stats = {
+                "Total Images": len(df),
+                "Images per Region": df['region'].value_counts().to_dict(),
+                "Average Quality Score": df['quality_score'].mean(),
+                "Quality Score Distribution": df['quality_score'].describe().to_dict(),
+                "Coordinate Spread per Region": df.groupby('region').agg({
+                    'latitude': ['std', 'min', 'max'],
+                    'longitude': ['std', 'min', 'max']
+                }).to_dict()
+            }
+
+            if 'captured_at' in df.columns and not df['captured_at'].isna().all():
+                stats["Images by Year"] = pd.to_datetime(df['captured_at']).dt.year.value_counts().to_dict()
+
+            self.logger.info("Collection statistics:")
+            for key, value in stats.items():
+                self.logger.info(f"{key}: {value}")
+
+            print("\nCollection Summary:")
+            print(f"Total Images: {stats['Total Images']}")
+            print("\nImages per Region:")
+            for region, count in stats['Images per Region'].items():
+                print(f"{region}: {count}")
+            print(f"\nAverage Quality Score: {stats['Average Quality Score']:.2f}")
+
+        except Exception as e:
+            self.logger.error(f"Error generating statistics: {str(e)}")
+            print(f"Warning: Error generating statistics: {str(e)}")
+
+    def get_random_coordinates(self, region: Dict[str, Dict[float, float]]) -> Tuple[float, float]:
         lat_range = region['lat']
         lon_range = region['lon']
-
         lat = random.uniform(lat_range[0], lat_range[1])
         lon = random.uniform(lon_range[0], lon_range[1])
-
         return lat, lon
 
     def search_images(self, lat: float, lon: float, radius: int = 1000) -> List[Dict]:
@@ -84,30 +134,42 @@ class MapillaryImageCollector:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
-
             return True
         except Exception as e:
             self.logger.error(f"Error downloading image from {url}: {str(e)}")
             return False
 
-    def collect_images(self) -> pd.DataFrame:
-        metadata = []
-        collected_ids: Set[str] = set()
-        region_counts = {region: 0 for region in self.regions}
+    def collect_images(self, target_per_region: Optional[int] = None) -> pd.DataFrame:
+        if target_per_region is None:
+            target_per_region = self.images_per_region
 
-        total_images = len(self.regions) * self.images_per_region
-        progress_bar = tqdm(total=total_images, desc="Collecting images")
+        existing_df, collected_ids, region_counts = self._load_existing_metadata()
+        new_metadata = []
 
-        while min(region_counts.values()) < self.images_per_region:
-            region_name = min(region_counts.items(), key=lambda x: x[1])[0]
+        remaining_images = {
+            region: max(0, target_per_region - region_counts.get(region, 0))
+            for region in self.regions
+        }
+
+        total_remaining = sum(remaining_images.values())
+        if total_remaining == 0:
+            print("Mumber of images already collected for all regions!")
+            return existing_df
+
+        progress_bar = tqdm(total=total_remaining, desc="Collecting images")
+
+        while any(count > 0 for count in remaining_images.values()):
+            region_name = max(remaining_images.items(), key=lambda x: x[1])[0]
             region_data = self.regions[region_name]
+
+            if remaining_images[region_name] <= 0:
+                continue
 
             lat, lon = self.get_random_coordinates(region_data)
             photos = self.search_images(lat, lon)
 
             for photo in photos:
-                if (photo['id'] in collected_ids or
-                        region_counts[region_name] >= self.images_per_region):
+                if photo['id'] in collected_ids or remaining_images[region_name] <= 0:
                     continue
 
                 try:
@@ -129,7 +191,7 @@ class MapillaryImageCollector:
                             if processed_path:
                                 os.remove(str(image_path))
 
-                                metadata.append({
+                                new_metadata.append({
                                     'image_id': f"mapillary_{photo['id']}",
                                     'filename': f"processed_{image_filename}",
                                     'latitude': photo_lat,
@@ -141,8 +203,11 @@ class MapillaryImageCollector:
                                 })
 
                                 collected_ids.add(photo['id'])
-                                region_counts[region_name] += 1
+                                remaining_images[region_name] -= 1
                                 progress_bar.update(1)
+
+                                if len(new_metadata) % 100 == 0:
+                                    self._save_metadata(new_metadata, existing_df)
                             else:
                                 if os.path.exists(str(image_path)):
                                     os.remove(str(image_path))
@@ -159,33 +224,16 @@ class MapillaryImageCollector:
 
         progress_bar.close()
 
-        metadata_df = pd.DataFrame(metadata)
-        self._log_statistics(metadata_df)
-        self.data_collector.save_metadata(metadata_df, "mapillary_metadata.csv")
-        return metadata_df
+        self._save_metadata(new_metadata, existing_df)
 
-    def _log_statistics(self, df: pd.DataFrame) -> None:
-        stats = {
-            "Total Images": len(df),
-            "Images per Region": df['region'].value_counts().to_dict(),
-            "Average Quality Score": df['quality_score'].mean(),
-            "Quality Score Distribution": df['quality_score'].describe().to_dict(),
-            "Images by Year": pd.to_datetime(df['captured_at']).dt.year.value_counts().to_dict(),
-            "Coordinate Spread per Region": df.groupby('region').agg({
-                'latitude': ['std', 'min', 'max'],
-                'longitude': ['std', 'min', 'max']
-            }).to_dict()
-        }
+        return pd.read_csv(self.data_collector.metadata_path / self.metadata_file)
 
-        self.logger.info("Collection statistics:")
-        for key, value in stats.items():
-            self.logger.info(f"{key}: {value}")
 
 def main():
-    collector = MapillaryImageCollector(images_per_region=1000)
-    print("Starting image collection")
+    collector = MapillaryImageCollector(images_per_region=500)
+    print("Starting image collection...")
 
-    metadata_df = collector.collect_images()
+    metadata_df = collector.collect_images(target_per_region=500)
 
     print("\nCollection completed!")
     print(f"Total images collected: {len(metadata_df)}")
@@ -194,6 +242,7 @@ def main():
 
     print("\nQuality score statistics:")
     print(metadata_df['quality_score'].describe())
+
 
 if __name__ == '__main__':
     main()
