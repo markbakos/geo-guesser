@@ -92,9 +92,7 @@ class LocationTrainer:
     def train(self):
         train_gen, val_gen, test_gen = self.prepare_generators()
 
-        self.model = create_hierarchical_model(
-            num_scenes=train_gen.num_scenes
-        )
+        self.model = create_hierarchical_model()
 
         optimizer = optimizers.Adam(learning_rate=self.initial_lr)
 
@@ -102,17 +100,14 @@ class LocationTrainer:
             optimizer=optimizer,
             loss={
                 'region': 'categorical_crossentropy',
-                'scene': 'categorical_crossentropy',
                 'coordinates': haversine_loss,
             },
             loss_weights = {
-                'region': 0.2,
-                'scene': 0.2,
-                'coordinates': 0.6,
+                'region': 0.3,
+                'coordinates': 0.7,
             },
             metrics={
                 'region': 'accuracy',
-                'scene': 'accuracy',
                 'coordinates': [location_accuracy],
             }
         )
@@ -144,14 +139,11 @@ class LocationTrainer:
         img_array = np.expand_dims(img_array, axis=0)
         img_array = applications.efficientnet.preprocess_input(img_array)
 
-        region_probs, scene_probs, coordinates = self.model.predict(img_array)
+        region_probs, coordinates = self.model.predict(img_array)
         predicted_region = np.argmax(region_probs[0])
-        predicted_scene = np.argmax(scene_probs[0])
 
         return {
             'coordinates': tuple(coordinates[0]),
             'region': predicted_region,
-            'region_confidence': float(region_probs[0][predicted_region]),
-            'scene': predicted_scene,
-            'scene_confidence': float(predicted_scene[0][predicted_scene])
+            'region_confidence': float(region_probs[0][predicted_region])
         }
