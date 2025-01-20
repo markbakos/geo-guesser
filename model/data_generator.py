@@ -19,7 +19,6 @@ class DataGenerator(utils.Sequence):
             self.metadata['region'] = 'unknown'
 
         self.create_region_labels()
-        self.create_scene_labels()
 
         if self.augment:
             self.aug_layer = Sequential([
@@ -31,12 +30,6 @@ class DataGenerator(utils.Sequence):
             ])
 
         self.on_epoch_end()
-
-    def create_scene_labels(self):
-        self.scene_encoder = LabelEncoder()
-        self.metadata['scene_encoded'] = self.scene_encoder.fit_transform(self.metadata['region'])
-        self.num_scenes = len(self.scene_encoder.classes_)
-        print(f"Found {self.num_scenes} scene categories: {self.scene_encoder.classes_}")
 
     def create_region_labels(self):
         from sklearn.cluster import KMeans
@@ -59,10 +52,9 @@ class DataGenerator(utils.Sequence):
         batch_x = np.zeros((batch_size, 224, 224, 3), dtype=np.float32)
         batch_y_coords = np.zeros((batch_size, 2), dtype=np.float32)
         batch_y_regions = np.zeros((batch_size, 8), dtype=np.float32)
-        batch_y_scenes = np.zeros((batch_size, self.num_scenes), dtype=np.float32)
 
         for i, (_, row) in enumerate(batch_metadata.iterrows()):
-            img_path = self.images_dir / f"processed_{row['filename']}"
+            img_path = self.images_dir / f"{row['filename']}"
             img = preprocessing.image.load_img(img_path, target_size=(224, 224))
             img = preprocessing.image.img_to_array(img)
 
@@ -74,11 +66,9 @@ class DataGenerator(utils.Sequence):
             batch_x[i] = img
             batch_y_coords[i] = [row['latitude'], row['longitude']]
             batch_y_regions[i] = utils.to_categorical(row['region_encoded'], num_classes=8)
-            batch_y_scenes[i] = utils.to_categorical(row['scene_encoded'], num_classes=self.num_scenes)
 
         return batch_x, {
             'region': batch_y_regions,
-            'scene': batch_y_scenes,
             'coordinates': batch_y_coords
         }
 

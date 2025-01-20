@@ -1,13 +1,8 @@
 import json
-
-from keras import preprocessing, applications, models
-import tensorflow as tf
-import numpy as np
 from pathlib import Path
-import argparse
-from PIL import Image
+import numpy as np
 from typing import Optional, Union, Dict
-
+from keras import preprocessing, applications, models
 from model.metrics import haversine_loss, location_accuracy
 
 class Predictor:
@@ -19,9 +14,7 @@ class Predictor:
             model_path = Path("model/checkpoints/best_model/best_overall_model.keras")
 
         if not model_path.exists():
-            raise FileNotFoundError(
-                "No model found."
-            )
+            raise FileNotFoundError("No model found.")
 
         self.model = models.load_model(
             model_path,
@@ -37,7 +30,7 @@ class Predictor:
 
         img = preprocessing.image.load_img(
             image_path,
-            target_size=(224,224),
+            target_size=(224, 224),
         )
         img_array = preprocessing.image.img_to_array(img)
         img_array = np.expand_dims(img_array, axis=0)
@@ -47,23 +40,22 @@ class Predictor:
         image_path = Path(image_path)
         img_array = self.preprocess_image(image_path)
 
-        region_probs, scene_probs, coordinates = self.model.predict(
+        region_probs, coordinates = self.model.predict(
             img_array,
             verbose=0
         )
 
         predicted_region = np.argmax(region_probs[0])
-        predicted_scene = np.argmax(scene_probs[0])
 
         return {
             'coordinates': (float(coordinates[0][0]), float(coordinates[0][1])),
             'region': int(predicted_region),
-            'region_confidence': float(region_probs[0][predicted_region]),
-            'scene': int(predicted_scene),
-            'scene_confidence': float(scene_probs[0][predicted_scene])
+            'region_confidence': float(region_probs[0][predicted_region])
         }
 
 def main():
+    import argparse
+
     parser = argparse.ArgumentParser(description='Predict location from image')
     parser.add_argument(
         'image_path',
