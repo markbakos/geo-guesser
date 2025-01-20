@@ -56,7 +56,7 @@ class DatasetSplitter:
 
 def main():
     splitter = DatasetSplitter(
-        metadata_path="dataset/metadata/flickr_metadata.csv"
+        metadata_path="dataset/metadata/mapillary_metadata.csv"
     )
 
     splits = splitter.split_dataset()
