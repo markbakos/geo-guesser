@@ -28,7 +28,7 @@ export default function Header() {
                                 </Link>
                             </li>
                             <li>
-                                <Link href="#" className="text-blue-600 hover:text-blue-700 font-medium">
+                                <Link href="/predict" className="text-blue-600 hover:text-blue-700 font-medium">
                                     Try It Now
                                 </Link>
                             </li>
