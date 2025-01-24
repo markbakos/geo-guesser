@@ -1,8 +1,7 @@
+"use client"
 
-export default function Predict () {
-    return (
-        <div>
-            aaa
-        </div>
-    )
+import PredictPage from "./PredictPage"
+
+export default function Predict() {
+    return <PredictPage />
 }
