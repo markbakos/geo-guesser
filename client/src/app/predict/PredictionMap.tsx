@@ -1,8 +1,20 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import L from "leaflet"
+import * as L from "leaflet"
 import "leaflet/dist/leaflet.css"
+
+const DefaultIcon = L.icon({
+    iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+    iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+})
+
+L.Marker.prototype.options.icon = DefaultIcon
 
 interface PredictionMapProps {
     prediction: [number, number] | null
@@ -11,34 +23,36 @@ interface PredictionMapProps {
 export default function PredictionMap({ prediction }: PredictionMapProps) {
     const mapRef = useRef<L.Map | null>(null)
     const markerRef = useRef<L.Marker | null>(null)
+    const mapContainerRef = useRef<HTMLDivElement | null>(null)
 
     useEffect(() => {
-        if (!mapRef.current) {
-            mapRef.current = L.map("map").setView([0, 0], 2)
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(mapRef.current)
+        if (mapContainerRef.current && !mapRef.current) {
+            mapRef.current = L.map(mapContainerRef.current).setView([0, 0], 2)
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(mapRef.current)
         }
 
         return () => {
-            if (mapRef.current) {
-                mapRef.current.remove()
-                mapRef.current = null
-            }
+            mapRef.current?.remove()
+            mapRef.current = null
         }
     }, [])
 
     useEffect(() => {
         if (prediction && mapRef.current) {
             const [lat, lng] = prediction
+            const newLatLng = new L.LatLng(lat, lng)
 
             if (markerRef.current) {
-                markerRef.current.setLatLng([lat, lng])
+                markerRef.current.setLatLng(newLatLng)
             } else {
-                markerRef.current = L.marker([lat, lng]).addTo(mapRef.current)
+                markerRef.current = L.marker(newLatLng).addTo(mapRef.current!)
             }
 
-            mapRef.current.setView([lat, lng], 8)
+            mapRef.current.setView(newLatLng, 8)
         }
     }, [prediction])
 
-    return <div id="map" className="h-full min-h-[400px] rounded-lg shadow-md" />
+    return <div ref={mapContainerRef} className="h-full min-h-[400px] rounded-lg shadow-md" />
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import axios from "axios";
 import Header from "@/app/components/Header"
 import ImageUpload from "@/app/predict/ImageUpload"
 import PredictionMap from "@/app/predict/PredictionMap"
@@ -16,16 +17,29 @@ export default function PredictPage() {
     const [prediction, setPrediction] = useState<[number, number] | null>(null)
 
     const handlePrediction = async (file: File) => {
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        try {
+            const formData = new FormData()
+            formData.append('image', file)
 
-        const response: ApiResponse = {
-            coordinates: [67.05232238769531, 40.305145263671875],
-            region: 2,
-            region_confidence: 0.32080528140068054,
+            const response = await axios.post<ApiResponse>(
+                    'http://127.0.0.1:8000/predict',
+                    formData,
+                    {
+                        headers: {
+                            'Content-Type': 'multipart/form-data',
+                        }
+                    }
+                )
+
+            const [longitude, latitude] = response.data.coordinates
+            setPrediction([latitude, longitude])
+
+            return response.data
         }
-
-        const [longitude, latitude] = response.coordinates
-        setPrediction([latitude, longitude])
+        catch (e) {
+            console.error('Prediciton Failed:', e)
+            throw e
+        }
     }
 
     return (
