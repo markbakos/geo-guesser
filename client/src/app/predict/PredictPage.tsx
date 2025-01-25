@@ -15,6 +15,7 @@ interface ApiResponse {
 
 export default function PredictPage() {
     const [prediction, setPrediction] = useState<[number, number] | null>(null)
+    const [message, setMessage] = useState<string | null>(null);
 
     const handlePrediction = async (file: File) => {
         try {
@@ -37,8 +38,12 @@ export default function PredictPage() {
             return response.data
         }
         catch (e) {
-            console.error('Prediciton Failed:', e)
-            throw e
+            setMessage("Prediction failed! Random coordinates generated. (Model not found / Server not running)")
+
+            const randomLat = Math.random() * (90 - -90) + -90
+            const randomLon = Math.random() * (180 - -180) + -180
+
+            setPrediction([randomLat, randomLon])
         }
     }
 
@@ -52,6 +57,7 @@ export default function PredictPage() {
                         <div>
                             <ImageUpload onUpload={handlePrediction} />
                             {prediction && <PredictionResult coordinates={prediction} />}
+                            {message && <p className="px-4 text-red-700">{message}</p>}
                         </div>
                         <div className="h-96 md:h-auto">
                             <PredictionMap prediction={prediction} />
