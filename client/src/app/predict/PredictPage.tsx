@@ -15,7 +15,7 @@ interface ApiResponse {
 
 export default function PredictPage() {
     const [prediction, setPrediction] = useState<[number, number] | null>(null)
-    const [message, setMessage] = useState<string | null>(null);
+    const [message, setMessage] = useState<string | null>(null)
 
     const handlePrediction = async (file: File) => {
         try {
@@ -44,6 +44,8 @@ export default function PredictPage() {
             const randomLon = Math.random() * (180 - -180) + -180
 
             setPrediction([randomLat, randomLon])
+
+            console.log(e)
         }
     }
 
