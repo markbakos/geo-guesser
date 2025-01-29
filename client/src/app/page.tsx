@@ -1,9 +1,12 @@
+"use client"
+
 import {MapPin} from "lucide-react"
 import Header from "./components/Header"
-import AnimatedGlobe from "./components/Globe"
 import HowItWorks from "@/app/components/HowItWorks";
 import Features from "@/app/components/Features";
+import dynamic from "next/dynamic"
 
+const AnimatedGlobe = dynamic(() => import("./components/Globe"), {ssr: false})
 
 export default function Home() {
     return (
