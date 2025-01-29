@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import * as L from "leaflet"
+
+const L = typeof window !== "undefined" ? require("leaflet") : null
 import "leaflet/dist/leaflet.css"
 
-const DefaultIcon = L.icon({
+const DefaultIcon = L ?
+    L.icon({
     iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
     iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
     shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
@@ -12,9 +14,12 @@ const DefaultIcon = L.icon({
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
     shadowSize: [41, 41]
-})
+    })
+    : null
 
-L.Marker.prototype.options.icon = DefaultIcon
+if (L) {
+    L.Marker.prototype.options.icon = DefaultIcon
+}
 
 interface PredictionMapProps {
     prediction: [number, number] | null
