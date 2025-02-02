@@ -1,17 +1,18 @@
 "use client"
 
-import {useEffect, useRef, useState} from "react"
+import { useEffect, useRef, useState } from "react"
 import "leaflet/dist/leaflet.css"
+import type * as Leaflet from "leaflet"
 
 interface PredictionMapProps {
     prediction: [number, number] | null
 }
 
 export default function PredictionMap({ prediction }: PredictionMapProps) {
-    const mapRef = useRef<any>(null)
-    const markerRef = useRef<any>(null)
+    const mapRef = useRef<Leaflet.Map | null>(null)
+    const markerRef = useRef<Leaflet.Marker | null>(null)
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
-    const [L, setL] = useState<any>(null)
+    const [L, setL] = useState<typeof Leaflet | null>(null)
 
     useEffect(() => {
         import("leaflet").then((leaflet) => {
