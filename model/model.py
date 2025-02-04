@@ -1,7 +1,7 @@
 from keras import layers, models, applications, regularizers
 
 
-def create_hierarchical_model(num_regions=8, input_shape=(224, 224, 3)):
+def create_model(num_regions=8, input_shape=(224, 224, 3)):
     base_model = applications.EfficientNetV2S(
         weights='imagenet',
         include_top=False,

@@ -4,7 +4,7 @@ import numpy as np
 from keras import callbacks, optimizers, preprocessing, applications
 from .data_generator import DataGenerator
 from .metrics import haversine_loss, location_accuracy
-from .hierarchial_model import create_hierarchical_model
+from .model import create_model
 
 class LocationTrainer:
     def __init__(self, data_dir: str = "collection/dataset", batch_size: int = 16, epochs: int = 200, initial_lr: float = 0.0005):
@@ -92,7 +92,7 @@ class LocationTrainer:
     def train(self):
         train_gen, val_gen, test_gen = self.prepare_generators()
 
-        self.model = create_hierarchical_model()
+        self.model = create_model()
 
         optimizer = optimizers.Adam(learning_rate=self.initial_lr)
 
