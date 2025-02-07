@@ -39,6 +39,9 @@ Outputs are weighted for a focus on regional and coordinate predictions.
 - Saves `best_location_model.keras` as the best validation coordinates accuracy from training.
 - Saves `best_overall_model.keras` as the best overall model based on validation loss from training.
 
+**Frontend UI:**
+- Uses NextJS for the frontend, with TypeScript and TailwindCSS.
+
 ## Requirements <a name = "requirements"></a>
 
 ### Prerequisites
@@ -78,10 +81,19 @@ pip install -r requirements.txt
 - Recommended amount of images: 25-50k or more 
 
 
-5. **Use the trained model**<br>
-(UI is WIP)
+5. **Use the trained model**
+- **From console**:
 ```
 python -m predict path/to/saved/image
+```
+
+**Using the UI -- Either**:
+- Use the deployed website: https://geo-guesser.onrender.com/
+- Start the development server:
+
+**Start the FastAPI server**
+```
+uvicorn server:app
 ```
 
 ## Contributing <a name = "contributing"></a>
