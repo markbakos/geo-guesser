@@ -7,3 +7,4 @@
 /model/checkpoints/
 /test/
 /collection/.dataset_world/
+/model/.world_checkpoints/
