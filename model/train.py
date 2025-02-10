@@ -99,15 +99,15 @@ class LocationTrainer:
         self.model.compile(
             optimizer=optimizer,
             loss={
-                'region': 'categorical_crossentropy',
+                'city': 'categorical_crossentropy',
                 'coordinates': haversine_loss,
             },
             loss_weights = {
-                'region': 0.3,
+                'city': 0.3,
                 'coordinates': 0.7,
             },
             metrics={
-                'region': 'accuracy',
+                'city': 'accuracy',
                 'coordinates': [location_accuracy],
             }
         )
@@ -139,11 +139,11 @@ class LocationTrainer:
         img_array = np.expand_dims(img_array, axis=0)
         img_array = applications.efficientnet.preprocess_input(img_array)
 
-        region_probs, coordinates = self.model.predict(img_array)
-        predicted_region = np.argmax(region_probs[0])
+        city_probs, coordinates = self.model.predict(img_array)
+        predicted_city = np.argmax(city_probs[0])
 
         return {
             'coordinates': tuple(coordinates[0]),
-            'region': predicted_region,
-            'region_confidence': float(region_probs[0][predicted_region])
+            'city': predicted_city,
+            'city_confidence': float(city_probs[0][predicted_city])
         }

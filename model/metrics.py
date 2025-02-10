@@ -27,7 +27,7 @@ def haversine_loss(y_true, y_pred):
     return haversine_distance(lat_true, lon_true, lat_pred, lon_pred)
 
 
-def location_accuracy(y_true, y_pred, threshold_km=100):
+def location_accuracy(y_true, y_pred, threshold_km=10):
     """Calculate if a prediction is correct"""
     lat_true, lon_true = tf.unstack(y_true, axis=-1)
     lat_pred, lon_pred = tf.unstack(y_pred, axis=-1)
