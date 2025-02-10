@@ -88,7 +88,7 @@ python -m predict path/to/saved/image
 ```
 
 **Using the UI -- Either**:
-- Use the deployed website: https://geo-guesser.onrender.com/
+- Use the deployed website: <a target="_blank" href="https://locationguesser.vercel.app">https://locationguesser.vercel.app</a>
 - Start the development server:
 
 **Start the FastAPI server**
