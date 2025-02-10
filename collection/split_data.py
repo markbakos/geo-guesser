@@ -24,7 +24,7 @@ class DatasetSplitter:
             train_df, temp_df = train_test_split(
                 df,
                 train_size=train_ratio,
-                stratify=df['region'],
+                stratify=df['city'],
                 random_state=seed
             )
 
@@ -32,7 +32,7 @@ class DatasetSplitter:
             val_df, test_df = train_test_split(
                 temp_df,
                 train_size=val_ratio_adjusted,
-                stratify=temp_df['region'],
+                stratify=temp_df['city'],
                 random_state=seed
             )
 
@@ -69,7 +69,7 @@ def main():
     print("\nLocation type distribution in splits:")
     for split_name, split_df in splits.items():
         print(f"\n{split_name} split distribution:")
-        print(split_df['region'].value_counts(normalize=True).mul(100).round(1))
+        print(split_df['city'].value_counts(normalize=True).mul(100).round(1))
 
 
 if __name__ == "__main__":
