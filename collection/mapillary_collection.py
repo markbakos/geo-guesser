@@ -9,13 +9,44 @@ import pandas as pd
 from tqdm import tqdm
 from data_collection import GeolocationDataCollector
 from dotenv import load_dotenv
-from queue import Queue
 import multiprocessing as mp
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
+
+HUNGARIAN_CITIES = {
+    'budapest': {'lat': 47.4979, 'lon': 19.0402, 'radius': 0.15},
+    'debrecen': {'lat': 47.5299, 'lon': 21.6391, 'radius': 0.2},
+    'szeged': {'lat': 46.2530, 'lon': 20.1414, 'radius': 0.2},
+    'miskolc': {'lat': 48.1034, 'lon': 20.7786, 'radius': 0.25},
+    'pecs': {'lat': 46.0727, 'lon': 18.2323, 'radius': 0.2},
+    'gyor': {'lat': 47.6873, 'lon': 17.6504, 'radius': 0.15},
+    'nyiregyhaza': {'lat': 47.9524, 'lon': 21.7267, 'radius': 0.2},
+    'keszthely': {'lat': 46.7672, 'lon': 17.2502, 'radius': 0.15},
+    'szekesfehervar': {'lat': 47.1860, 'lon': 18.4222, 'radius': 0.15},
+    'szombathely': {'lat': 47.2307, 'lon': 16.6218, 'radius': 0.15},
+    'szolnok': {'lat': 47.1626, 'lon': 20.1824, 'radius': 0.2},
+    'tatabanya': {'lat': 47.5865, 'lon': 18.3949, 'radius': 0.15},
+    'kaposvar': {'lat': 46.3590, 'lon': 17.7826, 'radius': 0.15},
+    'bekescsaba': {'lat': 46.6870, 'lon': 21.0877, 'radius': 0.15},
+    'ertek': {'lat': 47.6540, 'lon': 21.1458, 'radius': 0.15},
+    'veszprem': {'lat': 47.0930, 'lon': 17.9138, 'radius': 0.15},
+    'zalaegerszeg': {'lat': 46.8450, 'lon': 16.8437, 'radius': 0.15},
+    'eger': {'lat': 47.9031, 'lon': 20.3731, 'radius': 0.2},
+    'sopron': {'lat': 47.6817, 'lon': 16.5845, 'radius': 0.15},
+    'hodmezovasarhely': {'lat': 46.4208, 'lon': 20.3189, 'radius': 0.15},
+    'salgotarjan': {'lat': 48.1061, 'lon': 19.7989, 'radius': 0.15},
+    'baja': {'lat': 46.1750, 'lon': 18.9560, 'radius': 0.15},
+    'vac': {'lat': 47.7763, 'lon': 19.1314, 'radius': 0.15},
+    'szekszard': {'lat': 46.3503, 'lon': 18.7042, 'radius': 0.15},
+    'dunaujvaros': {'lat': 46.9804, 'lon': 18.9129, 'radius': 0.15}
+}
 
 
 class MapillaryImageCollector:
-    def __init__(self, api_key: Optional[str] = None, base_path: str = "dataset", images_per_location: int = 10, images_per_region: int = 1000, min_image_quality: float = 0.7, num_processes: int = 4, num_threads_per_process: int = 4):
+    def __init__(self, api_key: Optional[str] = None, base_path: str = "dataset",
+                 images_per_location: int = 20, images_per_city: int = 1500,
+                 min_image_quality: float = 0.7, num_processes: int = 4,
+                 num_threads_per_process: int = 4):
+
         dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
         load_dotenv(dotenv_path)
         self.api_keys = []
@@ -35,23 +66,13 @@ class MapillaryImageCollector:
 
         self.base_url = "https://graph.mapillary.com/images"
         self.images_per_location = images_per_location
-        self.images_per_region = images_per_region
+        self.images_per_city = images_per_city
         self.min_image_quality = min_image_quality
         self.num_processes = num_processes
         self.num_threads = num_threads_per_process
 
         self.data_collector = GeolocationDataCollector(base_path)
         self.metadata_file = "mapillary_metadata.csv"
-
-        self.regions = {
-            'north_america': {'lat': (25, 70), 'lon': (-170, -50)},
-            'south_america': {'lat': (-60, 15), 'lon': (-80, -35)},
-            'europe': {'lat': (35, 70), 'lon': (-10, 40)},
-            'africa': {'lat': (-35, 35), 'lon': (-20, 50)},
-            'asia': {'lat': (0, 70), 'lon': (60, 180)},
-            'oceania': {'lat': (-50, 0), 'lon': (110, 180)}
-        }
-
         self._setup_logging(base_path)
 
     def _load_existing_metadata(self) -> Tuple[pd.DataFrame, Set[str], Dict[str, int]]:
@@ -59,9 +80,9 @@ class MapillaryImageCollector:
         if metadata_path.exists():
             df = pd.read_csv(metadata_path)
             existing_ids = set(df['image_id'].str.replace('mapillary_', ''))
-            region_counts = df['region'].value_counts().to_dict()
-            return df, existing_ids, region_counts
-        return pd.DataFrame(), set(), {region: 0 for region in self.regions}
+            city_counts = df['city'].value_counts().to_dict()
+            return df, existing_ids, city_counts
+        return pd.DataFrame(), set(), {city: 0 for city in HUNGARIAN_CITIES}
 
     def _save_metadata(self, new_metadata: List[Dict], existing_df: pd.DataFrame = None) -> None:
         new_df = pd.DataFrame(new_metadata)
@@ -87,10 +108,10 @@ class MapillaryImageCollector:
         try:
             stats = {
                 "Total Images": len(df),
-                "Images per Region": df['region'].value_counts().to_dict(),
+                "Images per City": df['city'].value_counts().to_dict(),
                 "Average Quality Score": df['quality_score'].mean(),
                 "Quality Score Distribution": df['quality_score'].describe().to_dict(),
-                "Coordinate Spread per Region": df.groupby('region').agg({
+                "Coordinate Spread per City": df.groupby('city').agg({
                     'latitude': ['std', 'min', 'max'],
                     'longitude': ['std', 'min', 'max']
                 }).to_dict()
@@ -105,30 +126,28 @@ class MapillaryImageCollector:
 
             print("\nCollection Summary:")
             print(f"Total Images: {stats['Total Images']}")
-            print("\nImages per Region:")
-            for region, count in stats['Images per Region'].items():
-                print(f"{region}: {count}")
+            print("\nImages per City:")
+            for city, count in stats['Images per City'].items():
+                print(f"{city}: {count}")
             print(f"\nAverage Quality Score: {stats['Average Quality Score']:.2f}")
 
         except Exception as e:
             self.logger.error(f"Error generating statistics: {str(e)}")
             print(f"Warning: Error generating statistics: {str(e)}")
 
-    def get_random_coordinates(self, region: Dict[str, Dict[float, float]]) -> Tuple[float, float]:
-        lat_range = region['lat']
-        lon_range = region['lon']
-        lat = random.uniform(lat_range[0], lat_range[1])
-        lon = random.uniform(lon_range[0], lon_range[1])
+    def get_city_coordinates(self, city: str) -> Tuple[float, float]:
+        city_data = HUNGARIAN_CITIES[city]
+        lat = random.uniform(city_data['lat'] - city_data['radius'],
+                             city_data['lat'] + city_data['radius'])
+        lon = random.uniform(city_data['lon'] - city_data['radius'],
+                             city_data['lon'] + city_data['radius'])
         return lat, lon
 
     def search_images(self, lat: float, lon: float, api_key: str) -> List[Dict]:
-        headers = {
-            'Authorization': f'Bearer {api_key}'
-        }
-
+        headers = {'Authorization': f'Bearer {api_key}'}
         params = {
             'fields': 'id,geometry,thumb_2048_url,captured_at,quality_score',
-            'bbox': f'{lon - 0.1},{lat - 0.1},{lon + 0.1},{lat + 0.1}',
+            'bbox': f'{lon - 0.05},{lat - 0.05},{lon + 0.05},{lat + 0.05}',
             'limit': self.images_per_location
         }
 
@@ -136,7 +155,6 @@ class MapillaryImageCollector:
             response = requests.get(self.base_url, headers=headers, params=params)
             response.raise_for_status()
             data = response.json()
-
             return [img for img in data.get('data', [])
                     if img.get('quality_score', 0) >= self.min_image_quality]
         except Exception as e:
@@ -158,7 +176,8 @@ class MapillaryImageCollector:
             self.logger.error(f"Error downloading image from {url}: {str(e)}")
             return False
 
-    def _process_region(self, region_name: str, region_data: Dict, target_count: int, api_key: str, collected_ids: Set[str], result_queue: mp.Queue, progress_queue: mp.Queue):
+    def _process_city(self, city: str, target_count: int, api_key: str,
+                      collected_ids: Set[str], result_queue: mp.Queue, progress_queue: mp.Queue):
         local_collected = 0
         local_metadata = []
 
@@ -167,14 +186,14 @@ class MapillaryImageCollector:
 
             while local_collected < target_count:
                 try:
-                    lat, lon = self.get_random_coordinates(region_data)
+                    lat, lon = self.get_city_coordinates(city)
                     photos = self.search_images(lat, lon, api_key)
 
                     for photo in photos:
                         if photo['id'] in collected_ids or local_collected >= target_count:
                             continue
 
-                        future = executor.submit(self._process_photo, photo, region_name, api_key)
+                        future = executor.submit(self._process_photo, photo, city, api_key)
                         futures.append((future, photo['id']))
                         local_collected += 1
 
@@ -196,7 +215,7 @@ class MapillaryImageCollector:
 
                     time.sleep(0.2)
                 except Exception as e:
-                    self.logger.error(f"Error in region processing loop: {str(e)}")
+                    self.logger.error(f"Error in city processing loop: {str(e)}")
 
             for future, photo_id in futures:
                 try:
@@ -210,14 +229,14 @@ class MapillaryImageCollector:
             if local_metadata:
                 result_queue.put(local_metadata)
 
-    def _process_photo(self, photo: Dict, region_name: str, api_key: str) -> Optional[Dict]:
+    def _process_photo(self, photo: Dict, city: str, api_key: str) -> Optional[Dict]:
         try:
             coords = photo['geometry']['coordinates']
             photo_lon, photo_lat = coords[0], coords[1]
-            bounds = self.regions[region_name]
+            city_data = HUNGARIAN_CITIES[city]
 
-            if not (bounds['lat'][0] <= photo_lat <= bounds['lat'][1] and
-                    bounds['lon'][0] <= photo_lon <= bounds['lon'][1]):
+            if not (city_data['lat'] - city_data['radius'] <= photo_lat <= city_data['lat'] + city_data['radius'] and
+                    city_data['lon'] - city_data['radius'] <= photo_lon <= city_data['lon'] + city_data['radius']):
                 return None
 
             image_filename = f"mapillary_{photo['id']}.jpg"
@@ -229,21 +248,19 @@ class MapillaryImageCollector:
 
                     if processed_path:
                         os.remove(str(image_path))
-
                         return {
                             'image_id': f"mapillary_{photo['id']}",
                             'filename': f"processed_{image_filename}",
                             'latitude': photo_lat,
                             'longitude': photo_lon,
                             'source': 'mapillary',
-                            'region': region_name,
+                            'city': city,
                             'quality_score': photo.get('quality_score', 0),
                             'captured_at': photo.get('captured_at', '')
                         }
                     else:
                         if os.path.exists(str(image_path)):
                             os.remove(str(image_path))
-
             return None
         except Exception as e:
             self.logger.error(f"Error processing photo {photo['id']}: {str(e)}")
@@ -251,21 +268,21 @@ class MapillaryImageCollector:
                 os.remove(str(image_path))
             return None
 
-    def collect_images(self, target_per_region: Optional[int] = None) -> pd.DataFrame:
-        if target_per_region is None:
-            target_per_region = self.images_per_region
+    def collect_images(self, target_per_city: Optional[int] = None) -> pd.DataFrame:
+        if target_per_city is None:
+            target_per_city = self.images_per_city
 
-        existing_df, collected_ids, region_counts = self._load_existing_metadata()
+        existing_df, collected_ids, city_counts = self._load_existing_metadata()
         new_metadata = []
 
         remaining_images = {
-            region: max(0, target_per_region - region_counts.get(region, 0))
-            for region in self.regions
+            city: max(0, target_per_city - city_counts.get(city, 0))
+            for city in HUNGARIAN_CITIES
         }
 
         total_remaining = sum(remaining_images.values())
         if total_remaining == 0:
-            print("Number of images already collected for all regions!")
+            print("Number of images already collected for all cities!")
             return existing_df
 
         result_queue = mp.Queue()
@@ -275,19 +292,19 @@ class MapillaryImageCollector:
 
         progress_bar = tqdm(total=total_remaining, desc="Collecting images")
 
-        active_regions = [(region, data, remaining_images[region])
-                          for region, data in self.regions.items()
-                          if remaining_images[region] > 0]
+        active_cities = [(city, remaining_images[city])
+                         for city in HUNGARIAN_CITIES
+                         if remaining_images[city] > 0]
 
         try:
-            while active_regions or processes:
-                while len(processes) < self.num_processes and active_regions:
-                    region_name, region_data, target_count = active_regions.pop(0)
+            while active_cities or processes:
+                while len(processes) < self.num_processes and active_cities:
+                    city, target_count = active_cities.pop(0)
                     api_key = self.api_keys[len(processes) % len(self.api_keys)]
 
                     p = mp.Process(
-                        target=self._process_region,
-                        args=(region_name, region_data, target_count, api_key,
+                        target=self._process_city,
+                        args=(city, target_count, api_key,
                               collected_ids, result_queue, progress_queue)
                     )
                     p.start()
@@ -298,9 +315,7 @@ class MapillaryImageCollector:
                         try:
                             batch_results = result_queue.get_nowait()
                             new_metadata.extend(batch_results)
-
                             self._save_metadata(new_metadata, existing_df)
-
                             for _ in range(len(batch_results)):
                                 progress_bar.update(1)
                         except Exception:
@@ -324,21 +339,20 @@ class MapillaryImageCollector:
 
         return pd.read_csv(self.data_collector.metadata_path / self.metadata_file)
 
+
 def main():
     collector = MapillaryImageCollector(
-        images_per_region=2000,
-        num_processes=4, # Adjust based on CPU cores
+        images_per_city=1000,
+        num_processes=4,
         num_threads_per_process=4,
     )
     print("Starting image collection...")
-
-    metadata_df = collector.collect_images(target_per_region=3000)
+    metadata_df = collector.collect_images()
 
     print("\nCollection completed!")
     print(f"Total images collected: {len(metadata_df)}")
-    print("\nRegional distribution:")
-    print(metadata_df['region'].value_counts())
-
+    print("\nCity distribution:")
+    print(metadata_df['city'].value_counts())
     print("\nQuality score statistics:")
     print(metadata_df['quality_score'].describe())
 
