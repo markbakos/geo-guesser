@@ -5,3 +5,5 @@
 .env
 /model/logs/
 /model/checkpoints/
+/test/
+/collection/.dataset_world/
