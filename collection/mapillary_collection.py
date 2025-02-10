@@ -23,21 +23,6 @@ HUNGARIAN_CITIES = {
     'keszthely': {'lat': 46.7672, 'lon': 17.2502, 'radius': 0.15},
     'szekesfehervar': {'lat': 47.1860, 'lon': 18.4222, 'radius': 0.15},
     'szombathely': {'lat': 47.2307, 'lon': 16.6218, 'radius': 0.15},
-    'szolnok': {'lat': 47.1626, 'lon': 20.1824, 'radius': 0.2},
-    'tatabanya': {'lat': 47.5865, 'lon': 18.3949, 'radius': 0.15},
-    'kaposvar': {'lat': 46.3590, 'lon': 17.7826, 'radius': 0.15},
-    'bekescsaba': {'lat': 46.6870, 'lon': 21.0877, 'radius': 0.15},
-    'ertek': {'lat': 47.6540, 'lon': 21.1458, 'radius': 0.15},
-    'veszprem': {'lat': 47.0930, 'lon': 17.9138, 'radius': 0.15},
-    'zalaegerszeg': {'lat': 46.8450, 'lon': 16.8437, 'radius': 0.15},
-    'eger': {'lat': 47.9031, 'lon': 20.3731, 'radius': 0.2},
-    'sopron': {'lat': 47.6817, 'lon': 16.5845, 'radius': 0.15},
-    'hodmezovasarhely': {'lat': 46.4208, 'lon': 20.3189, 'radius': 0.15},
-    'salgotarjan': {'lat': 48.1061, 'lon': 19.7989, 'radius': 0.15},
-    'baja': {'lat': 46.1750, 'lon': 18.9560, 'radius': 0.15},
-    'vac': {'lat': 47.7763, 'lon': 19.1314, 'radius': 0.15},
-    'szekszard': {'lat': 46.3503, 'lon': 18.7042, 'radius': 0.15},
-    'dunaujvaros': {'lat': 46.9804, 'lon': 18.9129, 'radius': 0.15}
 }
 
 
@@ -342,7 +327,7 @@ class MapillaryImageCollector:
 
 def main():
     collector = MapillaryImageCollector(
-        images_per_city=1000,
+        images_per_city=3000,
         num_processes=4,
         num_threads_per_process=4,
     )
