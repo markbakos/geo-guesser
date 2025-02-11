@@ -12,19 +12,13 @@ from dotenv import load_dotenv
 import multiprocessing as mp
 from concurrent.futures import ThreadPoolExecutor
 
-HUNGARIAN_CITIES = {
-    'budapest': {'lat': 47.4979, 'lon': 19.0402, 'radius': 0.15},
-    'debrecen': {'lat': 47.5299, 'lon': 21.6391, 'radius': 0.2},
-    'szeged': {'lat': 46.2530, 'lon': 20.1414, 'radius': 0.2},
-    'miskolc': {'lat': 48.1034, 'lon': 20.7786, 'radius': 0.25},
-    'pecs': {'lat': 46.0727, 'lon': 18.2323, 'radius': 0.2},
-    'gyor': {'lat': 47.6873, 'lon': 17.6504, 'radius': 0.15},
-    'nyiregyhaza': {'lat': 47.9524, 'lon': 21.7267, 'radius': 0.2},
-    'keszthely': {'lat': 46.7672, 'lon': 17.2502, 'radius': 0.15},
-    'szekesfehervar': {'lat': 47.1860, 'lon': 18.4222, 'radius': 0.15},
-    'szombathely': {'lat': 47.2307, 'lon': 16.6218, 'radius': 0.15},
+CAPITALS = {
+    'budapest':  {'lat': 47.4979,  'lon': 19.0402,  'radius': 0.15},
+    'ottawa':    {'lat': 45.4215,  'lon': -75.6972, 'radius': 0.15},
+    'tokyo':     {'lat': 35.6895,  'lon': 139.6917, 'radius': 0.15},
+    'cairo':     {'lat': 30.0444,  'lon': 31.2357,  'radius': 0.15},
+    'canberra':  {'lat': -35.2809, 'lon': 149.1300, 'radius': 0.15},
 }
-
 
 class MapillaryImageCollector:
     def __init__(self, api_key: Optional[str] = None, base_path: str = "dataset",
@@ -67,7 +61,7 @@ class MapillaryImageCollector:
             existing_ids = set(df['image_id'].str.replace('mapillary_', ''))
             city_counts = df['city'].value_counts().to_dict()
             return df, existing_ids, city_counts
-        return pd.DataFrame(), set(), {city: 0 for city in HUNGARIAN_CITIES}
+        return pd.DataFrame(), set(), {city: 0 for city in CAPITALS}
 
     def _save_metadata(self, new_metadata: List[Dict], existing_df: pd.DataFrame = None) -> None:
         new_df = pd.DataFrame(new_metadata)
@@ -121,7 +115,7 @@ class MapillaryImageCollector:
             print(f"Warning: Error generating statistics: {str(e)}")
 
     def get_city_coordinates(self, city: str) -> Tuple[float, float]:
-        city_data = HUNGARIAN_CITIES[city]
+        city_data = CAPITALS[city]
         lat = random.uniform(city_data['lat'] - city_data['radius'],
                              city_data['lat'] + city_data['radius'])
         lon = random.uniform(city_data['lon'] - city_data['radius'],
@@ -218,7 +212,7 @@ class MapillaryImageCollector:
         try:
             coords = photo['geometry']['coordinates']
             photo_lon, photo_lat = coords[0], coords[1]
-            city_data = HUNGARIAN_CITIES[city]
+            city_data = CAPITALS[city]
 
             if not (city_data['lat'] - city_data['radius'] <= photo_lat <= city_data['lat'] + city_data['radius'] and
                     city_data['lon'] - city_data['radius'] <= photo_lon <= city_data['lon'] + city_data['radius']):
@@ -262,7 +256,7 @@ class MapillaryImageCollector:
 
         remaining_images = {
             city: max(0, target_per_city - city_counts.get(city, 0))
-            for city in HUNGARIAN_CITIES
+            for city in CAPITALS
         }
 
         total_remaining = sum(remaining_images.values())
@@ -278,7 +272,7 @@ class MapillaryImageCollector:
         progress_bar = tqdm(total=total_remaining, desc="Collecting images")
 
         active_cities = [(city, remaining_images[city])
-                         for city in HUNGARIAN_CITIES
+                         for city in CAPITALS
                          if remaining_images[city] > 0]
 
         try:
@@ -327,7 +321,7 @@ class MapillaryImageCollector:
 
 def main():
     collector = MapillaryImageCollector(
-        images_per_city=3000,
+        images_per_city=6000,
         num_processes=4,
         num_threads_per_process=4,
     )

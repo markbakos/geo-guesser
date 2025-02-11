@@ -8,3 +8,5 @@
 /test/
 /collection/.dataset_world/
 /model/.world_checkpoints/
+/model/.hun_checkpoints/
+/collection/.dataset_hungary/
