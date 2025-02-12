@@ -5,7 +5,6 @@ from keras import callbacks, optimizers, preprocessing, applications
 from .data_generator import DataGenerator
 from .metrics import haversine_loss, location_accuracy
 from .model import create_model
-from .visualize import AttentionVisualizer
 
 class LocationTrainer:
     def __init__(self, data_dir: str = "collection/dataset", batch_size: int = 16, epochs: int = 200, initial_lr: float = 0.0005):
@@ -127,21 +126,3 @@ class LocationTrainer:
             print(f"{metric_name}: {value:.4f}")
 
         return history
-
-    def visualize_attention(self, image_path: str):
-        if self.model is None:
-            raise ValueError("Model needs to be trained first")
-
-        visualizer = AttentionVisualizer
-        return visualizer.visualize(image_path)
-
-    def predict_location(self, image_path: str) -> dict:
-        if self.model is None:
-            raise ValueError("Model needs to be trained first")
-
-        img = preprocessing.image.load_img(image_path, target_size=(224,224))
-        img_array = preprocessing.image.img_to_array(img)
-        img_array = np.expand_dims(img_array, axis=0)
-        img_array = applications.efficientnet.preprocess_input(img_array)
-
-        city_probs, coordinates = self.model.predict(img)
