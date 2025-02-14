@@ -58,7 +58,7 @@ export default function ImageUpload({ onUpload }: ImageUploadProps) {
         >
             <Upload className="mx-auto h-12 w-12 text-gray-400" />
             <p className="mt-2 text-sm text-gray-600">Drag and drop an image here, or click to select a file</p>
-            <input type="file" className="hidden" accept="image/*" onChange={handleFileInput} id="file-upload" />
+            <input type="file" className="hidden" accept="image/*" disabled={isUploading} onChange={handleFileInput} id="file-upload" />
             <label
                 htmlFor="file-upload"
                 className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"

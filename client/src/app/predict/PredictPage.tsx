@@ -8,13 +8,16 @@ import PredictionMap from "@/app/predict/PredictionMap"
 import PredictionResult from "@/app/predict/PredictionResult"
 
 interface ApiResponse {
-    coordinates: [number, number]
-    region: number
-    region_confidence: number
+    coordinates: {
+        latitude: number
+        longitude: number
+    }
+    city: string
+    city_confidence: number
 }
 
 export default function PredictPage() {
-    const [prediction, setPrediction] = useState<[number, number] | null>(null)
+    const [prediction, setPrediction] = useState<ApiResponse | null>(null)
     const [message, setMessage] = useState<string | null>(null)
 
     const handlePrediction = async (file: File) => {
@@ -32,39 +35,67 @@ export default function PredictPage() {
                     }
                 )
 
-            const [longitude, latitude] = response.data.coordinates
-            setPrediction([latitude, longitude])
+
+            setMessage("")
+            setPrediction({
+                coordinates: response.data.coordinates,
+                city: response.data.city,
+                city_confidence: response.data.city_confidence
+            })
+
+            console.log(prediction)
 
             return response.data
         }
         catch (e) {
-            setMessage("Prediction failed! Random coordinates generated. (Model not found / Server not running)")
+            setMessage("Prediction failed! Random coordinates generated.")
+
+            const cities= [
+                "Budapest",
+                "Cairo",
+                "Ottawa",
+                "Tokyo",
+                "Canberra"
+            ]
 
             const randomLat = Math.random() * (90 - -90) + -90
             const randomLon = Math.random() * (180 - -180) + -180
 
-            setPrediction([randomLat, randomLon])
+            setPrediction({
+                coordinates: {
+                    latitude: randomLat,
+                    longitude: randomLon
+                },
+                city: cities[Math.floor(Math.random() * cities.length)],
+                city_confidence: Math.random()
+            })
 
             console.log(e)
         }
     }
 
     return (
-        <div className="min-h-screen flex flex-col">
+        <div className="min-h-screen bg-gray-900 text-white">
             <Header />
-            <main className="flex-grow">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-8">Predict Image Location</h1>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div>
-                            <ImageUpload onUpload={handlePrediction} />
-                            {prediction && <PredictionResult coordinates={prediction} />}
-                            {message && <p className="px-4 text-red-700">{message}</p>}
-                        </div>
-                        <div className="h-96 md:h-auto">
-                            <PredictionMap prediction={prediction} />
-                        </div>
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <h1 className="text-4xl font-extrabold mb-1 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
+                    Predict Image Location
+                </h1>
+                <p className="text-md text-center mb-8">
+                    The model is not hosted yet, to use this model you have to start the server yourself.
+                </p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="space-y-8">
+                        <ImageUpload onUpload={handlePrediction}/>
+                        {prediction && <PredictionResult coordinates={prediction.coordinates} city={prediction.city} city_confidence={prediction.city_confidence}/>}
+
                     </div>
+                    <div>
+                        <PredictionMap prediction={prediction ? prediction.coordinates : null}/>
+                    </div>
+                </div>
+                <div className="mt-3">
+                    {message && <p className="text-xl text-red-500 font-semibold">{message}</p>}
                 </div>
             </main>
         </div>

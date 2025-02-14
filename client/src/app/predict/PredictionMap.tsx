@@ -5,7 +5,10 @@ import "leaflet/dist/leaflet.css"
 import type * as Leaflet from "leaflet"
 
 interface PredictionMapProps {
-    prediction: [number, number] | null
+    prediction: {
+        latitude: number
+        longitude: number
+    } | null
 }
 
 export default function PredictionMap({ prediction }: PredictionMapProps) {
@@ -38,7 +41,8 @@ export default function PredictionMap({ prediction }: PredictionMapProps) {
     useEffect(() => {
         if (!L || !prediction || !mapRef.current) return
 
-        const [lat, lng] = prediction
+        const lat = prediction.latitude
+        const lng = prediction.longitude
         const newLatLng = new L.LatLng(lat, lng)
 
         if (markerRef.current) {
