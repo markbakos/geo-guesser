@@ -34,8 +34,8 @@ async def predict(image: UploadFile = File(...)):
 
         return {
             "coordinates": result['coordinates'],
-            "region": result['region'],
-            "confidence": result['region_confidence']
+            "city": result['city'],
+            "city_confidence": result['city_confidence']
         }
 
     except Exception as e:
