@@ -1,80 +1,50 @@
 "use client"
 
-import {MapPin} from "lucide-react"
 import Header from "./components/Header"
-import HowItWorks from "@/app/components/HowItWorks";
-import Features from "@/app/components/Features";
 import dynamic from "next/dynamic"
+import { Github } from "lucide-react"
+import Link from "next/link"
 
-const AnimatedGlobe = dynamic(() => import("./components/Globe"), {ssr: false})
+const AnimatedGlobe = dynamic(() => import("./components/Globe"), { ssr: false })
 
 export default function Home() {
     return (
-        <div className="min-h-screen flex flex-col scroll-smooth">
+        <div className="min-h-screen flex flex-col bg-gray-900 text-white overflow-x-hidden">
             <Header />
-            <main>
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-100">
-                    <div
-                        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 flex flex-col lg:flex-row items-center">
-                        <div className="flex-1 text-center lg:text-left mb-10 lg:mb-0">
-                            <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
+            <main className="flex-grow">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-24">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                        <div className="space-y-6">
+                            <h1 className="text-4xl font-extrabold sm:text-5xl md:text-6xl bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
                                 Discover Where Your Images Were Taken
                             </h1>
-                            <p className="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto lg:mx-0 md:mt-5 md:text-xl">
-                                Upload any image and our AI will predict its location. Fast, accurate, and completely
-                                free.
-                            </p>
-                            <div className="mt-8 sm:mt-10">
-                                <a
-                                    href="/predict"
-                                    className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                                >
-                                    Get Started
-                                </a>
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <Link href="/predict" >
+                                    <button className="bg-blue-600 hover:bg-blue-700 w-32 h-10 rounded-md">
+                                        Get Started
+                                    </button>
+                                </Link>
+                                <Link href="https://github.com/markbakos/geo-guesser" target="_blank">
+                                    <button
+                                        className="gap-2 flex items-center justify-center w-48 h-10 border border-white rounded-md hover:text-black hover:bg-white transition">
+                                        <Github className="w-5 h-5"/>
+                                        View on GitHub
+                                    </button>
+                                </Link>
                             </div>
                         </div>
-                        <div className="flex-1 flex justify-center lg:justify-end">
-                            <div className="w-full max-w-[600px] h-[400px]">
+                        <div className="w-full lg:w-1/2 flex justify-center items-center mt-8 lg:mt-0">
+                            <div
+                                className="w-full max-w-[300px] sm:max-w-[400px] md:max-w-[500px] aspect-square relative">
+                                <div
+                                    className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-3xl"></div>
                                 <AnimatedGlobe/>
                             </div>
                         </div>
                     </div>
                 </div>
-                <Features />
-                <HowItWorks />
             </main>
-            <footer className="bg-white">
-                <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                            <MapPin className="h-8 w-8 text-blue-600"/>
-                            <span className="ml-2 text-xl font-bold text-gray-900">LocationGuesser</span>
-                        </div>
-                        <nav className="-mx-5 -my-2 flex flex-wrap justify-center">
-                            <div className="px-5 py-2">
-                                <a href="https://github.com/markbakos" target="_blank" className="text-base text-gray-500 hover:text-gray-900">
-                                    GitHub
-                                </a>
-                            </div>
-                            <div className="px-5 py-2">
-                                <a href="https://www.linkedin.com/in/markbakos/" target="_blank" className="text-base text-gray-500 hover:text-gray-900">
-                                    LinkedIn
-                                </a>
-                            </div>
-                            <div className="px-5 py-2">
-                                <a href="mailto:markbakosss@gmail.com" target="_blank" className="text-base text-gray-500 hover:text-gray-900">
-                                    Mail
-                                </a>
-                            </div>
-                            <div className="px-5 py-2">
-                                <a href="https://markbakos.onrender.com/" target="_blank" className="text-base text-gray-500 hover:text-gray-900">
-                                    Portfolio
-                                </a>
-                            </div>
-                        </nav>
-                    </div>
-                </div>
-            </footer>
         </div>
     )
 }
+
