@@ -11,7 +11,7 @@ export default function Header() {
                 <div className="flex items-center justify-between">
                     <Link href="/" className="flex items-center space-x-2">
                         <MapPin className="h-8 w-8 text-blue-400" />
-                        <span className="text-xl font-bold">LocationGuesser</span>
+                        <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">LocationGuesser</span>
                     </Link>
                     <nav className="">
                         <ul className="flex space-x-6">
