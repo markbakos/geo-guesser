@@ -32,6 +32,8 @@ This project is divided into three main components:
 - **Model:** The EfficientNetV2S-based neural network handling both classification and regression.
 - **Frontend:** A web application built with Next.js, TypeScript and TailwindCSS to easily interact with the model.
 
+<img src="https://github.com/markbakos/geo-guesser/blob/main/images/model.png?raw=true" alt="The model's architecture">
+
 ## Features <a name = "features"></a>
 
 **Data Handling:**
@@ -45,6 +47,8 @@ This project is divided into three main components:
 - Uses the pre-trained EfficientNetV2S network with custom upper layers.
 - Employs fine-tuning where the EfficientNetV2S base is frozen, and only the custom layers are trained with the Adam optimizer.
 - Uses GRAD-CAM to produce heatmaps on request that reveal image regions influencing the model's decisions.
+
+<img src="https://github.com/markbakos/geo-guesser/blob/main/images/heatmap.png?raw=true" alt="Heatmap from the model">
 
 **Training and Evaluation:**
 
@@ -98,12 +102,8 @@ python -m predict path/to/saved/image --generate_heatmap
 
 - **With the UI**:
   - Use the deployed website: <a target="_blank" href="https://locationguesser.vercel.app">https://locationguesser.vercel.app</a>
-- Start the FastAPI server:
-```
-uvicorn server:app
-```
-
-**Start the FastAPI server**
+<br><br>
+- **Start the FastAPI server:**
 ```
 uvicorn server:app
 ```
