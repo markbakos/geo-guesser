@@ -61,7 +61,7 @@ export default function ImageUpload({ onUpload }: ImageUploadProps) {
             <input type="file" className="hidden" accept="image/*" disabled={isUploading} onChange={handleFileInput} id="file-upload" />
             <label
                 htmlFor="file-upload"
-                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
+                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 select-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
             >
                 {isUploading ? "Uploading..." : "Select Image"}
             </label>
