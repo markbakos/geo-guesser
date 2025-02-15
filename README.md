@@ -13,34 +13,49 @@
 
 ## About <a name = "about"></a>
 
-This project uses a deep learning approach to predict the geographic location of an image. By using convolutional neural networks (CNNs), it identifies patterns in visual data that
-correlate with specific regions. The model, designed with a hierarchical structure predicts the coordinates and region (continent).
-<br><br>
-The dataset for training is collected using Mapillary API. The model's architecture combines pre-trained layers from EfficientNetV2S backbone with custom dense layers.
-Outputs are weighted for a focus on regional and coordinate predictions.
+This is a deep learning project that tries to predict where an image was taken. It uses a Convolutional Neural Network to analyze visual features and
+distinguish between locations based on the unique architectual, environmental and infrastructural elements.
 
+The project currently focuses on five major capitals (you can set custom cities and locations):
+- **Budapest**
+- **Ottawa**
+- **Tokyo**
+- **Cairo**
+- **Canberra**
+
+The model performs two key tasks:
+1. **City Classification:** Assigns an image to one of the pre-defined city categories using a softmax-activated output layer.
+2. **Coordinate Regression:** Estimates latitude and longitude values via a linear-activated output layer.
+
+This project is divided into three main components:
+- **Backend:** A FastAPI server that connects the model with the web interface.
+- **Model:** The EfficientNetV2S-based neural network handling both classification and regression.
+- **Frontend:** A web application built with Next.js, TypeScript and TailwindCSS to easily interact with the model.
 
 ## Features <a name = "features"></a>
 
 **Data Handling:**
 
-- Uses the Mapillary API to gather equal amount of diverse images per region for training
-- Splits data for training, validation and testing.
+- Uses the Mapillary API to collect street-level images and metadata using the Mapillary API.
+- Speeds up data gathering through concurrent API requests.
+- Preprocesses images (resizing to 224x224 pixels) for efficient training.
 
 **Deep Learning Model:**
 
-- Employs EfficientNetV2S as the backbone, with additional layers for hierarchical predictions.
-- Estimates latitude and longitude coordinate and predicts region. 
-- Haversine Loss for coordinate accuracy and Categorical Crossentropy for regions.
+- Uses the pre-trained EfficientNetV2S network with custom upper layers.
+- Employs fine-tuning where the EfficientNetV2S base is frozen, and only the custom layers are trained with the Adam optimizer.
+- Uses GRAD-CAM to produce heatmaps on request that reveal image regions influencing the model's decisions.
 
 **Training and Evaluation:**
 
-- Tracks multiple metrics like regional accuracy and coordinate based location accuracy.
+- Achieves approximately 83% accuracy in city classification.
 - Saves `best_location_model.keras` as the best validation coordinates accuracy from training.
 - Saves `best_overall_model.keras` as the best overall model based on validation loss from training.
 
 **Frontend UI:**
-- Uses NextJS for the frontend, with TypeScript and TailwindCSS.
+- Developed with Next.js, TypeScript and TailwindCSS.
+- Provides an easily usable interface for users to interact with the model.
+- Accessible online at [Location Guesser](https://locationguesser.vercel.app),
 
 ## Requirements <a name = "requirements"></a>
 
@@ -64,32 +79,29 @@ pip install -r requirements.txt
  cd geo-guesser
 ```
 
-2. **Set up enviromental variables**
+2. **Set up environmental variables**
 - In the root folder (geo-guesser), in your .env file:
 ```
 MAPILLARY_KEY=[Your API key]
 ```
 
-3. **Install dependencies:**
-```
-pip install -r requirements.txt
-```
+3. **Prepare the dataset**
 
-4. **Set up the dataset**
-
+- Set your desired locations to gather data from, or keep the original 5.
 - Collect images using `mapillary_collection.py`
-- Recommended amount of images: 25-50k or more 
 
-
-5. **Use the trained model**
+4. **Using the trained model**
 - **From console**:
 ```
-python -m predict path/to/saved/image
+python -m predict path/to/saved/image --generate_heatmap
 ```
 
-**Using the UI -- Either**:
-- Use the deployed website: <a target="_blank" href="https://locationguesser.vercel.app">https://locationguesser.vercel.app</a>
-- Start the development server:
+- **With the UI**:
+  - Use the deployed website: <a target="_blank" href="https://locationguesser.vercel.app">https://locationguesser.vercel.app</a>
+- Start the FastAPI server:
+```
+uvicorn server:app
+```
 
 **Start the FastAPI server**
 ```
