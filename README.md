@@ -14,7 +14,7 @@
 ## About <a name = "about"></a>
 
 This is a deep learning project that tries to predict where an image was taken. It uses a Convolutional Neural Network to analyze visual features and
-distinguish between locations based on the unique architectual, environmental and infrastructural elements.
+distinguish between locations based on the unique architectural, environmental and infrastructural elements.
 
 The project currently focuses on five major capitals (you can set custom cities and locations):
 - **Budapest**
