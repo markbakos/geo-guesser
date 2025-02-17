@@ -1,12 +1,11 @@
-import tensorflow as tf
 from pathlib import Path
-import numpy as np
-from keras import callbacks, optimizers, preprocessing, applications
+from keras import callbacks, optimizers
 from .data_generator import DataGenerator
 from .metrics import haversine_loss, location_accuracy
 from .model import create_model
 
 class LocationTrainer:
+    """Manages training for the model"""
     def __init__(self, data_dir: str = "collection/dataset", batch_size: int = 16, epochs: int = 200, initial_lr: float = 0.0005):
         self.data_dir = Path(data_dir)
         self.batch_size = batch_size
@@ -23,6 +22,7 @@ class LocationTrainer:
         self.backup_dir.mkdir(exist_ok=True)
 
     def prepare_generators(self):
+        """Create data generators for training, validation and testing"""
         train_gen = DataGenerator(
             metadata_path=self.data_dir / "metadata/train_metadata.csv",
             images_dir=self.data_dir / "images",
@@ -47,6 +47,7 @@ class LocationTrainer:
         return train_gen, val_gen, test_gen
 
     def get_callbacks(self):
+        """Callbacks for saving, stopping training and tracking progress"""
         callback = [
             callbacks.ModelCheckpoint(
                 str(self.best_model_dir / "best_location_model.keras"),
@@ -90,6 +91,7 @@ class LocationTrainer:
         return callback
 
     def train(self):
+        """Trains the model"""
         train_gen, val_gen, test_gen = self.prepare_generators()
 
         self.model = create_model()

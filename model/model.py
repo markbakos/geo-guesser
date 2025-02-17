@@ -1,7 +1,7 @@
 from keras import layers, models, applications, regularizers
 
-
 def create_model(num_cities=5, input_shape=(224, 224, 3)):
+    """Create a deep learning model with EfficientNetV2S backbone for location prediction."""
     base_model = applications.EfficientNetV2S(
         weights='imagenet',
         include_top=False,

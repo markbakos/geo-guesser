@@ -2,15 +2,17 @@ import numpy as np
 import tensorflow as tf
 import cv2
 from typing import Tuple
-from keras import layers, models, preprocessing, applications
+from keras import models, preprocessing, applications
 
 class AttentionVisualizer:
+    """A class for visualizing model attention through Grad-CAM"""
     def __init__(self, model, last_conv_layer_name='top_conv'):
         self.model = model
         self.last_conv_layer = model.get_layer(last_conv_layer_name)
         self.grad_model = self._create_grad_model()
 
     def _create_grad_model(self):
+        """Create a grad model for computing GRAD-CAM."""
         return models.Model(
             inputs=[self.model.inputs],
             outputs=[
@@ -21,6 +23,7 @@ class AttentionVisualizer:
         )
 
     def _compute_heatmap(self, img_array: np.ndarray) -> np.ndarray:
+        """Compute the GRAD-CAM heatmap for an input image."""
         with tf.GradientTape() as tape:
             conv_output, city_preds, coord_preds = self.grad_model(img_array)
             pred_index = tf.argmax(city_preds[0])
@@ -36,6 +39,7 @@ class AttentionVisualizer:
         return heatmap.numpy()
 
     def overlay_heatmap(self, img: np.ndarray, heatmap: np.ndarray, alpha: float = 0.4) -> np.ndarray:
+        """Overlay the heatmap on the original image."""
         heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
         heatmap = np.uint8(255 * heatmap)
         heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
@@ -47,6 +51,7 @@ class AttentionVisualizer:
         return cv2.cvtColor(superimposed, cv2.COLOR_BGR2RGB)
 
     def visualize(self, image_path: str, target_size: Tuple[int, int] = (224, 224)) -> np.ndarray:
+        """Generate a full visualization of model attention for an image"""
         img = preprocessing.image.load_img(image_path, target_size=target_size)
         img_array = preprocessing.image.img_to_array(img)
         img_array = np.expand_dims(img_array, axis=0)

@@ -6,6 +6,7 @@ from keras import Sequential, utils, layers, preprocessing, applications
 import pickle
 
 class DataGenerator(utils.Sequence):
+    """Creates batches of preprocessed images for training the model"""
     def __init__(self, metadata_path: Path, images_dir: Path, batch_size: int = 32, augment: bool = False, shuffle: bool = True):
         self.metadata = pd.read_csv(metadata_path)
         self.images_dir = images_dir
@@ -47,6 +48,7 @@ class DataGenerator(utils.Sequence):
         self.on_epoch_end()
 
     def normalize_coordinates(self, lat, lon):
+        """Normalizes lat and lon coordinate values to a [0-1] range."""
         lat_norm = (lat - self.lat_min) / (self.lat_max - self.lat_min)
         lon_norm = (lon - self.lon_min) / (self.lon_max - self.lon_min)
         return np.array([lat_norm, lon_norm])
@@ -55,6 +57,7 @@ class DataGenerator(utils.Sequence):
         return int(np.ceil(len(self.metadata) / self.batch_size))
 
     def __getitem__(self, idx):
+        """Generate one batch of data"""
         batch_indexes = self.indexes[idx * self.batch_size:(idx + 1) * self.batch_size]
         batch_metadata = self.metadata.iloc[batch_indexes]
 
@@ -83,5 +86,6 @@ class DataGenerator(utils.Sequence):
         }
 
     def on_epoch_end(self):
+        """Shuffles the data after each epoch"""
         if self.shuffle:
             np.random.shuffle(self.indexes)
