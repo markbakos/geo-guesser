@@ -17,6 +17,7 @@ class DatasetSplitter:
         self.logger = logging.getLogger(__name__)
 
     def split_dataset(self, train_ratio: float = 0.7, val_ratio: float = 0.15, seed: int = 42) -> dict:
+        """Evenly splits dataset into train, val and test with given ratio"""
         try:
             df = pd.read_csv(self.metadata_path)
             self.logger.info(f"Loaded {len(df)} samples from {self.metadata_path}")

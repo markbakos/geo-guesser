@@ -1,10 +1,11 @@
 import logging
 from pathlib import Path
 from PIL import Image
-from typing import Tuple, Dict
+from typing import Tuple
 import pandas as pd
 
 class GeolocationDataCollector:
+    """Class for universal image validation and processing"""
     def __init__(self, base_path: str = "dataset"):
         self.base_path = Path(base_path)
         self.images_path = self.base_path / "images"
@@ -22,7 +23,6 @@ class GeolocationDataCollector:
 
     def validate_image(self, image_path: str) -> bool:
         """Validates if image is usable, not corrupted and has proper dimensions"""
-
         try:
             with Image.open(image_path) as img:
                 img.verify()
@@ -36,6 +36,7 @@ class GeolocationDataCollector:
             return False
 
     def process_image(self, image_path: str, target_size: Tuple[int, int] = (224, 224)) -> str:
+        """Processes the given image"""
         try:
             with Image.open(image_path) as img:
                 if img.mode != 'RGB':

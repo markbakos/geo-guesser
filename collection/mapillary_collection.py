@@ -21,6 +21,7 @@ CAPITALS = {
 }
 
 class MapillaryImageCollector:
+    """Collector for images using Mapillary API"""
     def __init__(self, api_key: Optional[str] = None, base_path: str = "dataset",
                  images_per_location: int = 20, images_per_city: int = 1500,
                  min_image_quality: float = 0.7, num_processes: int = 4,
@@ -55,6 +56,7 @@ class MapillaryImageCollector:
         self._setup_logging(base_path)
 
     def _load_existing_metadata(self) -> Tuple[pd.DataFrame, Set[str], Dict[str, int]]:
+        """Load previous image metadata if it exists"""
         metadata_path = self.data_collector.metadata_path / self.metadata_file
         if metadata_path.exists():
             df = pd.read_csv(metadata_path)
@@ -64,6 +66,7 @@ class MapillaryImageCollector:
         return pd.DataFrame(), set(), {city: 0 for city in CAPITALS}
 
     def _save_metadata(self, new_metadata: List[Dict], existing_df: pd.DataFrame = None) -> None:
+        """Saves collected metadata and logs collection statistics"""
         new_df = pd.DataFrame(new_metadata)
         if existing_df is not None and not existing_df.empty:
             combined_df = pd.concat([existing_df, new_df], ignore_index=True)
@@ -74,6 +77,7 @@ class MapillaryImageCollector:
         self._log_statistics(combined_df)
 
     def _setup_logging(self, base_path: str) -> None:
+        """Configure logging for collection"""
         log_dir = Path('logs')
         log_dir.mkdir(exist_ok=True)
         logging.basicConfig(
@@ -84,6 +88,7 @@ class MapillaryImageCollector:
         self.logger = logging.getLogger(__name__)
 
     def _log_statistics(self, df: pd.DataFrame) -> None:
+        """Generate and log statistics about collection"""
         try:
             stats = {
                 "Total Images": len(df),
@@ -115,6 +120,7 @@ class MapillaryImageCollector:
             print(f"Warning: Error generating statistics: {str(e)}")
 
     def get_city_coordinates(self, city: str) -> Tuple[float, float]:
+        """Generate random coordinates within the specified bounds"""
         city_data = CAPITALS[city]
         lat = random.uniform(city_data['lat'] - city_data['radius'],
                              city_data['lat'] + city_data['radius'])
@@ -123,6 +129,7 @@ class MapillaryImageCollector:
         return lat, lon
 
     def search_images(self, lat: float, lon: float, api_key: str) -> List[Dict]:
+        """Search for the images near specified coordinates"""
         headers = {'Authorization': f'Bearer {api_key}'}
         params = {
             'fields': 'id,geometry,thumb_2048_url,captured_at,quality_score',
@@ -141,6 +148,7 @@ class MapillaryImageCollector:
             return []
 
     def download_image(self, url: str, save_path: str, api_key: str) -> bool:
+        """Download an image"""
         try:
             headers = {'Authorization': f'Bearer {api_key}'}
             response = requests.get(url, headers=headers, stream=True, timeout=10)
@@ -155,8 +163,8 @@ class MapillaryImageCollector:
             self.logger.error(f"Error downloading image from {url}: {str(e)}")
             return False
 
-    def _process_city(self, city: str, target_count: int, api_key: str,
-                      collected_ids: Set[str], result_queue: mp.Queue, progress_queue: mp.Queue):
+    def _process_city(self, city: str, target_count: int, api_key: str, collected_ids: Set[str], result_queue: mp.Queue, progress_queue: mp.Queue):
+        """Process image collection for specific city"""
         local_collected = 0
         local_metadata = []
 
@@ -209,6 +217,7 @@ class MapillaryImageCollector:
                 result_queue.put(local_metadata)
 
     def _process_photo(self, photo: Dict, city: str, api_key: str) -> Optional[Dict]:
+        """Process an individual photo and delete the original"""
         try:
             coords = photo['geometry']['coordinates']
             photo_lon, photo_lat = coords[0], coords[1]
@@ -248,6 +257,7 @@ class MapillaryImageCollector:
             return None
 
     def collect_images(self, target_per_city: Optional[int] = None) -> pd.DataFrame:
+        """Collects the dataset"""
         if target_per_city is None:
             target_per_city = self.images_per_city
 
