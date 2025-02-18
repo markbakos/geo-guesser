@@ -66,6 +66,8 @@ This project is divided into three main components:
 ### Prerequisites
 1. **Python 3.10 or higher**: Install from [python.org](https://www.python.org/downloads/).
 2. **pip**: Python package manager (comes with Python installations).
+3. **CUDA Toolkit 12.8** (optional)
+4. **cuDNN 9.7.1** (optional)
 
 ### Python Dependencies
 
